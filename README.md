@@ -82,7 +82,9 @@ Senza questo, i dispositivi che hanno già installato l'app continuano a servire
 
 L'app non crea account, non usa cookie, non ha statistiche né pubblicità, e l'autore non gestisce alcun server: nessun dato sugli utilizzi viene raccolto o conservato. La posizione è richiesta solo su azione esplicita ed è elaborata sul dispositivo; le coordinate vengono trasmesse al servizio meteo soltanto quando si chiede il calcolo per un punto specifico. Informativa completa nella scheda **Info e privacy** dell'app.
 
-**Da sistemare prima di una pubblicazione istituzionale:** i caratteri tipografici sono caricati da Google Fonts, con trasmissione dell'indirizzo IP verso server extra-UE. Per un ente pubblico vanno ospitati sul proprio dominio. È l'unica dipendenza extra-europea del progetto.
+L'hosting è GitHub Pages: GitHub registra nei propri log l'indirizzo IP dei visitatori, ed è dichiarato nell'informativa fra i destinatari.
+
+**Da sistemare prima di una pubblicazione istituzionale:** due dipendenze comportano un trasferimento extra-UE, i caratteri da Google Fonts e la libreria Leaflet da unpkg. Entrambe si eliminano ospitando i file sul proprio dominio. I dati meteorologici e cartografici sono già europei.
 
 ## Limiti
 
