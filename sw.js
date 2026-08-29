@@ -1,7 +1,7 @@
 /* Sottobosco — service worker
    Guscio in cache-first, dati meteo in network-first con ricaduta sulla cache. */
 
-const V = "sottobosco-v4";
+const V = "sottobosco-v5";
 const GUSCIO = [
   "./",
   "./index.html",
