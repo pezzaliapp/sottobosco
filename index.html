@@ -273,6 +273,7 @@ select{
         <p style="font-size:14px;color:var(--lichene)">Non è un servizio ufficiale di alcun ente pubblico. Non è sponsorizzato né sostenuto da Regioni, Province, enti parco o aziende sanitarie.</p>
         <div class="nrow"><span>Email</span><p><a href="mailto:pezzaliapp@gmail.com">pezzaliapp@gmail.com</a></p></div>
         <div class="nrow"><span>Siti</span><p><a href="https://pezzaliapp.com" target="_blank" rel="noopener">pezzaliapp.com</a> · <a href="https://alessandropezzali.it" target="_blank" rel="noopener">alessandropezzali.it</a> · <a href="https://pezzalihub.app" target="_blank" rel="noopener">pezzalihub.app</a></p></div>
+        <div class="nrow"><span>Versione</span><p><b id="verApp">—</b> del <span id="verData">—</span>. L'app si aggiorna da sola: quando c'è una versione nuova viene scaricata e applicata al successivo avvio, senza dover svuotare la cache.</p></div>
         <div class="nrow"><span>Segnalazioni</span><p>Un dato normativo sbagliato, una zona da aggiungere, un errore nel modello: scrivi all'email sopra.</p></div>
       </div>
 
@@ -337,6 +338,10 @@ select{
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 "use strict";
+
+/* Versione dell'app. Va tenuta allineata a VERSIONE in sw.js. */
+const APP_VER = "1.1.0";
+const APP_DATA = "29 agosto 2026";
 
 /* =========================================================
    1. LUOGHI — aree vocate, coordinate indicative del comprensorio
@@ -858,7 +863,9 @@ window.addEventListener("resize",()=>{
 function toast(t){const e=q("#toast");e.textContent=t;e.classList.add("on");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("on"),3200)}
 
 function stamp(ts){
-  q("#stampDate").textContent=new Date(ts).toLocaleString("it-IT",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+  q("#stampDate").textContent=
+    new Date(ts).toLocaleString("it-IT",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})
+    +" · v"+APP_VER;
 }
 
 async function carica(forza){
@@ -883,6 +890,11 @@ async function carica(forza){
 }
 function usa(d){ disegna(d); renderList(d); renderNear(d); }
 renderNorme();
+(function versione(){
+  const a=q("#verApp"), b=q("#verData");
+  if(a) a.textContent="v"+APP_VER;
+  if(b) b.textContent=APP_DATA;
+})();
 
 document.querySelectorAll(".tab").forEach(t=>{
   t.onclick=()=>{
@@ -908,7 +920,36 @@ window.addEventListener("keydown",e=>{if(e.key==="Escape")q("#shClose").click()}
 
 initMap();
 carica(false);
-if("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+/* --- aggiornamento automatico ---------------------------------
+   Il service worker serve il codice con strategia rete-prima, quindi
+   una versione nuova arriva sempre. Quando il worker cambia, la pagina
+   si ricarica da sola una volta sola. */
+if("serviceWorker" in navigator){
+  let giaRicaricato=false;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(giaRicaricato) return;
+    giaRicaricato=true;
+    location.reload();
+  });
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("sw.js").then(reg=>{
+      reg.addEventListener("updatefound",()=>{
+        const nuovo=reg.installing;
+        if(!nuovo) return;
+        nuovo.addEventListener("statechange",()=>{
+          if(nuovo.state==="installed" && navigator.serviceWorker.controller){
+            toast("Nuova versione disponibile, aggiorno…");
+            nuovo.postMessage("attiva-subito");
+          }
+        });
+      });
+      const controlla=()=>reg.update().catch(()=>{});
+      document.addEventListener("visibilitychange",()=>{ if(!document.hidden) controlla(); });
+      setInterval(controlla, 30*60*1000);
+      controlla();
+    }).catch(()=>{});
+  });
+}
 </script>
 </body>
 </html>

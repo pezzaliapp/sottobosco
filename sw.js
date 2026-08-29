@@ -1,15 +1,24 @@
 /* Sottobosco — service worker
-   Guscio in cache-first, dati meteo in network-first con ricaduta sulla cache. */
+   ---------------------------------------------------------------
+   Strategia:
+   - codice dell'app (html, js, manifest) → RETE PRIMA, cache solo se offline.
+     Così una nuova versione arriva sempre, senza svuotare nulla a mano.
+   - icone, tasselli, font, librerie → cache prima, sono immutabili.
+   - dati meteo → rete prima, cache come ricaduta offline.
+   Il nuovo worker prende subito il controllo (skipWaiting + clients.claim)
+   e la pagina si ricarica da sola. */
 
-const V = "sottobosco-v5";
+const VERSIONE = "1.1.0";
+const V = "sottobosco-" + VERSIONE;
+
 const GUSCIO = [
   "./",
   "./index.html",
+  "./norme.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
-  "./norme.js",
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
   "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
 ];
@@ -30,39 +39,45 @@ self.addEventListener("activate", e => {
   );
 });
 
+self.addEventListener("message", e => {
+  if (e.data === "attiva-subito") self.skipWaiting();
+});
+
+const salva = (req, res) => {
+  if (res && res.ok) {
+    const copia = res.clone();
+    caches.open(V).then(c => c.put(req, copia));
+  }
+  return res;
+};
+
+const retePrima = req =>
+  fetch(req, { cache: "no-store" })
+    .then(r => salva(req, r))
+    .catch(() => caches.match(req));
+
+const cachePrima = req =>
+  caches.match(req).then(hit => hit || fetch(req).then(r => salva(req, r)));
+
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+  const stessaOrigine = url.origin === self.location.origin;
 
-  // Dati meteo: prima la rete, poi l'ultima risposta salvata
   if (url.hostname.endsWith("open-meteo.com")) {
-    e.respondWith(
-      fetch(req)
-        .then(r => {
-          const copia = r.clone();
-          caches.open(V).then(c => c.put(req, copia));
-          return r;
-        })
-        .catch(() => caches.match(req))
-    );
+    e.respondWith(retePrima(req));
     return;
   }
 
-  // Tasselli della mappa e font: cache opportunistica, mai bloccante
-  if (/tile\.openstreetmap\.org|opentopomap\.org|fonts\.(googleapis|gstatic)/.test(url.hostname)) {
-    e.respondWith(
-      caches.match(req).then(hit => hit || fetch(req).then(r => {
-        const copia = r.clone();
-        caches.open(V).then(c => c.put(req, copia));
-        return r;
-      }).catch(() => hit))
-    );
+  const eCodice = req.mode === "navigate" ||
+    (stessaOrigine && /\.(html|js|webmanifest)$/.test(url.pathname)) ||
+    (stessaOrigine && url.pathname.endsWith("/"));
+
+  if (eCodice) {
+    e.respondWith(retePrima(req).then(r => r || caches.match("./index.html")));
     return;
   }
 
-  // Tutto il resto: guscio dell'app
-  e.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).catch(() => caches.match("./index.html")))
-  );
+  e.respondWith(cachePrima(req).catch(() => caches.match("./index.html")));
 });

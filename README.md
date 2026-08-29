@@ -68,15 +68,21 @@ Una sola richiesta copre tutti i 50 comprensori, con cache di 3 ore.
 
 **Attenzione per un uso commerciale o istituzionale:** la licenza gratuita di Open-Meteo copre solo l'uso non commerciale. Un contratto con un ente richiede il piano a pagamento. Anche i tasselli OpenStreetMap vanno sostituiti con un fornitore contrattualizzato oltre un certo volume. Dettagli in `DOSSIER-ENTI.md`.
 
-## Aggiornare
+## Versione e aggiornamenti
 
-Dopo ogni modifica ai file, alza la versione della cache in `sw.js`:
+Versione corrente: **1.1.0**, mostrata nella testata accanto alla data del rilevamento e nella scheda Info e privacy.
+
+L'app si aggiorna da sola. Il service worker serve il codice con strategia *rete prima*: `index.html`, `norme.js` e il manifest vengono sempre richiesti alla rete, e la cache interviene solo se il dispositivo è offline. Quando arriva un service worker nuovo, prende subito il controllo e la pagina si ricarica una volta sola. Nessuno deve svuotare cache a mano.
+
+Dopo ogni modifica basta allineare due righe:
 
 ```js
-const V = "sottobosco-v3";
+// sw.js
+const VERSIONE = "1.2.0";
+// index.html
+const APP_VER = "1.2.0";
+const APP_DATA = "3 settembre 2026";
 ```
-
-Senza questo, i dispositivi che hanno già installato l'app continuano a servire la versione precedente.
 
 ## Privacy e avvertenze
 
