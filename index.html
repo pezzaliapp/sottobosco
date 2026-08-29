@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+<title>Sottobosco · indice di buttata dei funghi in Italia</title>
+<meta name="description" content="Indice di crescita dei funghi in Italia calcolato in tempo reale da pioggia, temperatura e bilancio idrico del suolo. Gratuito, senza account, senza costi.">
+<meta name="theme-color" content="#14180F">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sottobosco">
+<link rel="icon" href="icons/icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Archivo:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+:root{
+  --humus:#14180F;
+  --suolo:#1C2117;
+  --corteccia:#2A3122;
+  --muschio:#6E8B3D;
+  --lichene:#AFC08A;
+  --porcino:#C98A3C;
+  --amanita:#C1442E;
+  --spora:#F2EFE4;
+  --nebbia:#8C947E;
+  --r:14px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;overscroll-behavior:none}
+body{
+  background:var(--humus);color:var(--spora);
+  font-family:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:16px;line-height:1.45;
+  display:flex;flex-direction:column;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:"Fraunces",Georgia,serif;font-variation-settings:"SOFT" 40,"WONK" 1;margin:0;letter-spacing:-.01em}
+.mono{font-family:"Space Mono",ui-monospace,monospace}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:focus-visible{outline:2px solid var(--porcino);outline-offset:2px;border-radius:6px}
+
+/* ---------- testata ---------- */
+.topbar{
+  padding:calc(var(--safe-t) + 12px) 16px 10px;
+  display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid var(--corteccia);
+  background:linear-gradient(180deg,#1A2013,#14180F);
+}
+.brand{display:flex;align-items:center;gap:11px;flex:1;min-width:0}
+.brand h1{font-size:21px;font-weight:800;line-height:1}
+.stamp{margin:3px 0 0;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--nebbia)}
+.iconbtn{width:42px;height:42px;border-radius:50%;border:1px solid var(--corteccia);display:grid;place-items:center;flex:none;background:#1A2013}
+.iconbtn:active{background:var(--corteccia)}
+.spin{animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- schede ---------- */
+.tabs{display:flex;gap:2px;padding:8px 10px;border-bottom:1px solid var(--corteccia);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  padding:8px 14px;border-radius:999px;font-size:13.5px;font-weight:600;
+  color:var(--nebbia);white-space:nowrap;border:1px solid transparent;
+}
+.tab[aria-selected="true"]{background:var(--corteccia);color:var(--spora);border-color:#3A4430}
+
+main{flex:1;position:relative;overflow:hidden}
+.view{position:absolute;inset:0;display:none;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.view.on{display:block}
+.pad{padding:16px 16px calc(28px + var(--safe-b));max-width:700px;margin:0 auto}
+
+/* ---------- mappa ---------- */
+#map{position:absolute;inset:0;background:#0F1310}
+.leaflet-container{font-family:"Archivo",sans-serif;background:#0F1310}
+/* tema scuro ricavato dai tasselli OSM chiari: nessuna chiave, nessun costo.
+   Il filtro tocca solo i tasselli, i marcatori restano nei loro colori. */
+#map.buio .leaflet-tile-pane{
+  filter:invert(1) hue-rotate(184deg) brightness(.92) contrast(.88) saturate(.42) sepia(.14);
+}
+.leaflet-control-attribution{background:rgba(20,24,15,.82)!important;color:#7E8672!important;font-size:9px!important}
+.leaflet-control-attribution a{color:#9AA88A!important}
+.leaflet-bar a{background:#1C2117!important;color:#F2EFE4!important;border-color:#2A3122!important}
+.leaflet-tooltip.tt{
+  background:#1C2117;border:1px solid #3A4430;color:#F2EFE4;font-size:12px;font-weight:600;
+  border-radius:8px;padding:5px 9px;box-shadow:0 4px 14px rgba(0,0,0,.45)
+}
+.leaflet-tooltip.tt::before{border-top-color:#3A4430}
+.maptools{position:absolute;left:10px;bottom:calc(14px + var(--safe-b));z-index:600;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.chip{
+  background:rgba(20,24,15,.9);border:1px solid var(--corteccia);border-radius:999px;
+  padding:8px 13px;font-size:12.5px;font-weight:600;backdrop-filter:blur(6px);
+}
+.chip.armed{background:var(--porcino);color:#14180F;border-color:var(--porcino)}
+.legend{
+  position:absolute;right:10px;top:10px;z-index:600;background:rgba(20,24,15,.9);
+  border:1px solid var(--corteccia);border-radius:12px;padding:9px 11px;backdrop-filter:blur(6px);
+}
+.legend b{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--nebbia);font-weight:700}
+.scale{display:flex;height:7px;width:112px;border-radius:4px;overflow:hidden;margin:6px 0 4px}
+.scale i{flex:1}
+.legend small{font-size:9.5px;color:var(--nebbia);display:flex;justify-content:space-between}
+.pulse{animation:pl 2.4s ease-out infinite}
+@keyframes pl{0%{r:9;opacity:.85}70%{r:24;opacity:0}100%{opacity:0}}
+
+/* ---------- schede luogo ---------- */
+.card{
+  background:var(--suolo);border:1px solid var(--corteccia);border-radius:var(--r);
+  padding:13px 14px;margin-bottom:10px;display:flex;gap:13px;align-items:center;width:100%;text-align:left;
+}
+.card:active{background:#232A1C}
+.card .val{font-family:"Space Mono",monospace;font-size:22px;font-weight:700;line-height:1;width:52px;flex:none;text-align:center}
+.card .val small{display:block;font-size:9px;font-weight:400;color:var(--nebbia);letter-spacing:.06em;margin-top:3px}
+.card h3{font-size:16px;font-weight:600}
+.card p{margin:2px 0 0;font-size:12.5px;color:var(--nebbia)}
+.rank{font-family:"Space Mono",monospace;font-size:11px;color:var(--nebbia);width:20px;flex:none}
+
+/* ---------- pannello dettaglio ---------- */
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;top:0;z-index:1200;
+  background:var(--humus);display:flex;flex-direction:column;
+  transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1);
+  visibility:hidden;
+}
+.sheet.open{transform:none;visibility:visible}
+.sheet header{
+  padding:calc(var(--safe-t) + 12px) 16px 12px;border-bottom:1px solid var(--corteccia);
+  display:flex;gap:12px;align-items:flex-start;background:#1A2013;
+}
+.sheet header .wrap{display:flex;gap:12px;align-items:flex-start;max-width:700px;margin:0 auto;width:100%}
+.sheet header h2{font-size:20px;font-weight:800;flex:1}
+.sheet header p{margin:3px 0 0;font-size:12px;color:var(--nebbia)}
+.sheet .body{flex:1;overflow-y:auto;padding:18px 16px calc(30px + var(--safe-b))}
+.sheet .body > *{max-width:700px;margin-inline:auto}
+
+.gauge{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+.gauge svg{flex:none}
+.verdict{font-family:"Fraunces",serif;font-size:22px;font-weight:800;line-height:1.15;margin:0}
+.verdict + p{margin:6px 0 0;font-size:13.5px;color:var(--lichene)}
+
+.sec{margin-top:22px}
+.sec > h3{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--nebbia);font-family:"Archivo",sans-serif;font-weight:700;margin-bottom:10px}
+.bar{margin-bottom:11px}
+.bar .lbl{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px}
+.bar .lbl span:last-child{font-family:"Space Mono",monospace;color:var(--nebbia)}
+.track{height:6px;background:#252C1E;border-radius:3px;overflow:hidden}
+.track i{display:block;height:100%;border-radius:3px;background:var(--muschio);transition:width .5s}
+
+.tl{max-width:100%;height:auto;display:block;border-radius:10px;background:var(--suolo);border:1px solid var(--corteccia)}
+.tlkey{display:flex;gap:14px;margin-top:8px;font-size:11px;color:var(--nebbia);flex-wrap:wrap}
+.tlkey b{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+.sp{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid #232A1C}
+.sp:last-child{border:0}
+.sp .dot{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none;background:var(--porcino)}
+.sp h4{margin:0;font-size:14.5px;font-weight:600;font-family:"Archivo",sans-serif}
+.sp em{font-style:italic;color:var(--nebbia);font-size:12px}
+.sp p{margin:3px 0 0;font-size:12.5px;color:var(--lichene)}
+
+.note{background:var(--suolo);border-left:3px solid var(--porcino);border-radius:0 10px 10px 0;padding:12px 14px;font-size:13px;color:var(--lichene);margin-top:14px}
+.note.warn{border-color:var(--amanita)}
+.note b{color:var(--spora)}
+
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.stat div{background:var(--suolo);border:1px solid var(--corteccia);border-radius:10px;padding:10px}
+.stat b{display:block;font-family:"Space Mono",monospace;font-size:17px}
+.stat span{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--nebbia)}
+
+/* ---------- generici ---------- */
+.msg{padding:38px 22px;text-align:center;color:var(--nebbia);font-size:14px}
+.msg b{display:block;color:var(--spora);font-family:"Fraunces",serif;font-size:19px;font-weight:700;margin-bottom:7px}
+.btn{background:var(--muschio);color:#12160D;font-weight:700;padding:12px 20px;border-radius:999px;display:inline-block;margin-top:14px}
+.btn.ghost{background:none;border:1px solid var(--corteccia);color:var(--spora)}
+.toast{
+  position:fixed;left:50%;bottom:calc(26px + var(--safe-b));transform:translate(-50%,20px);
+  background:var(--corteccia);border:1px solid #3E4934;padding:11px 18px;border-radius:999px;font-size:13px;
+  z-index:2000;opacity:0;transition:.25s;pointer-events:none;max-width:88vw;text-align:center;
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.skel{height:66px;border-radius:var(--r);background:linear-gradient(90deg,#1C2117,#242C1D,#1C2117);background-size:200% 100%;animation:sk 1.4s linear infinite;margin-bottom:10px}
+@keyframes sk{to{background-position:-200% 0}}
+ul.rules{padding-left:18px;margin:0}
+ul.rules li{margin-bottom:9px;font-size:14px;color:var(--lichene)}
+ul.rules li b{color:var(--spora)}
+.lbl2{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--nebbia);font-weight:700;margin-bottom:6px}
+select{
+  width:100%;font:inherit;font-size:16px;color:var(--spora);background:var(--suolo);
+  border:1px solid var(--corteccia);border-radius:10px;padding:11px 13px;appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238C947E' stroke-width='2.4'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat;background-position:right 13px center;
+}
+.nbox{margin-top:14px}
+.nhead{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.nhead h3{font-size:19px;font-weight:800;flex:1}
+.tagv,.tagd{font-size:10px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;padding:4px 9px;border-radius:999px}
+.tagv{background:#26331A;color:#A8C86B;border:1px solid #3C5226}
+.tagd{background:#3A2A16;color:#D9A55E;border:1px solid #5A4020}
+.nlaw{font-size:12.5px;color:var(--nebbia);margin:0 0 12px}
+.nlaw a{color:var(--lichene)}
+.nrow{padding:10px 0;border-bottom:1px solid #232A1C}
+.nrow span{display:block;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--nebbia);font-weight:700;margin-bottom:3px}
+.nrow p{margin:0;font-size:14px;color:var(--spora)}
+.nrow p a{color:var(--porcino)}
+.sec ul.rules li a{color:var(--porcino)}
+.nsrc{font-size:11.5px;color:var(--nebbia);margin:12px 0 0}
+.nsrc a{color:var(--lichene)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M4 15c0-6.2 5.4-11 12-11s12 4.8 12 11c0 1.3-1 2-2.4 2H6.4C5 17 4 16.3 4 15z" fill="#C98A3C"/>
+      <ellipse cx="11" cy="10" rx="2.4" ry="1.7" fill="#E0AA6B"/>
+      <ellipse cx="20" cy="8.4" rx="1.7" ry="1.2" fill="#E0AA6B"/>
+      <path d="M13 17h6c0 4-.7 7.4-1.2 10.4-.2 1-2.4 1-2.6 0C14.7 24.4 13 21 13 17z" fill="#EFE7D4"/>
+    </svg>
+    <div>
+      <h1>Sottobosco</h1>
+      <p class="stamp">Indice di buttata · <span id="stampDate">—</span></p>
+    </div>
+  </div>
+  <button class="iconbtn" id="btnRefresh" aria-label="Aggiorna i dati">
+    <svg id="refreshIcon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+      <path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>
+    </svg>
+  </button>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-v="map">Mappa</button>
+  <button class="tab" role="tab" aria-selected="false" data-v="list">Classifica</button>
+  <button class="tab" role="tab" aria-selected="false" data-v="near">Vicino a me</button>
+  <button class="tab" role="tab" aria-selected="false" data-v="rules">Norme regionali</button>
+  <button class="tab" role="tab" aria-selected="false" data-v="info">Info e privacy</button>
+</nav>
+
+<main>
+  <section class="view on" id="v-map">
+    <div id="map"></div>
+    <div class="legend">
+      <b>Indice</b>
+      <div class="scale"><i style="background:#5A6B5E"></i><i style="background:#6E8B3D"></i><i style="background:#A8A233"></i><i style="background:#C98A3C"></i><i style="background:#D9622B"></i></div>
+      <small><span>fermo</span><span>buttata</span></small>
+    </div>
+    <div class="maptools">
+      <button class="chip" id="btnProbe">Sonda un punto</button>
+      <button class="chip" id="btnLayer">Rilievo</button>
+    </div>
+  </section>
+
+  <section class="view" id="v-list"><div class="pad" id="listBox"></div></section>
+  <section class="view" id="v-near"><div class="pad" id="nearBox"></div></section>
+
+  <section class="view" id="v-rules"><div class="pad" id="normeBox"></div></section>
+
+  <section class="view" id="v-info">
+    <div class="pad">
+      <h2 style="font-size:22px;margin-bottom:3px">Info e privacy</h2>
+      <p style="color:var(--nebbia);font-size:13px;margin:0 0 18px">Chi c'è dietro, che cosa fa l'app con i tuoi dati, e che cosa non garantisce.</p>
+
+      <div class="sec"><h3>Chi c'è dietro</h3>
+        <p style="font-size:14px;color:var(--lichene);margin-top:0">Sottobosco è un progetto indipendente di <b style="color:var(--spora)">Alessandro Pezzali</b>, parte dell'ecosistema PezzaliApp: applicazioni web gratuite, open source e senza pubblicità, che funzionano nel browser senza installazione.</p>
+        <p style="font-size:14px;color:var(--lichene)">Non è un servizio ufficiale di alcun ente pubblico. Non è sponsorizzato né sostenuto da Regioni, Province, enti parco o aziende sanitarie.</p>
+        <div class="nrow"><span>Email</span><p><a href="mailto:pezzaliapp@gmail.com">pezzaliapp@gmail.com</a></p></div>
+        <div class="nrow"><span>Siti</span><p><a href="https://pezzaliapp.com" target="_blank" rel="noopener">pezzaliapp.com</a> · <a href="https://alessandropezzali.it" target="_blank" rel="noopener">alessandropezzali.it</a> · <a href="https://pezzalihub.app" target="_blank" rel="noopener">pezzalihub.app</a></p></div>
+        <div class="nrow"><span>Codice sorgente</span><p><a href="https://github.com/pezzaliapp/sottobosco" target="_blank" rel="noopener">github.com/pezzaliapp/sottobosco</a> — licenza MIT</p></div>
+        <div class="nrow"><span>Segnalazioni</span><p>Un dato normativo sbagliato, una zona da aggiungere, un errore nel modello: scrivi all'email sopra o apri una segnalazione su GitHub.</p></div>
+      </div>
+
+      <div class="sec"><h3>Informativa privacy</h3>
+        <p style="font-size:13px;color:var(--nebbia);margin-top:0">Ai sensi degli articoli 13 e 14 del Regolamento UE 2016/679. Ultimo aggiornamento: 29 agosto 2026.</p>
+        <div class="nrow"><span>Titolare del trattamento</span><p>Alessandro Pezzali — pezzaliapp@gmail.com</p></div>
+        <div class="nrow"><span>Cosa non viene raccolto</span><p>Nessun account, nessuna registrazione, nessun cookie, nessun sistema di statistiche o tracciamento, nessuna pubblicità, nessuna profilazione. L'autore non gestisce alcun server e non riceve né conserva dati sui tuoi utilizzi.</p></div>
+        <div class="nrow"><span>Dati sul tuo dispositivo</span><p>L'app salva localmente l'ultimo rilevamento meteo, per funzionare offline. Restano nel tuo browser, non vengono trasmessi e si cancellano disinstallando l'app o svuotando i dati del sito.</p></div>
+        <div class="nrow"><span>Posizione</span><p>Richiesta solo se tocchi «Usa la mia posizione», e revocabile in ogni momento dalle impostazioni del telefono. Serve a ordinare i comprensori per distanza, calcolo che avviene sul dispositivo. <b>Se invece chiedi di calcolare l'indice nel punto in cui ti trovi, o sondi un punto sulla mappa, quelle coordinate vengono inviate al servizio meteo</b> per ottenere i dati di quel luogo: è tecnicamente necessario e non sono associate a un'identità.</p></div>
+        <div class="nrow"><span>Terze parti che ricevono il tuo indirizzo IP</span><p>Come per qualsiasi sito, i fornitori dei contenuti caricati vedono l'indirizzo IP di connessione: <b>Open-Meteo</b> (dati meteo, Germania), <b>OpenStreetMap Foundation</b> e <b>OpenTopoMap</b> (tasselli della mappa), <b>unpkg</b> (libreria Leaflet), <b>Google Fonts</b> (caratteri tipografici, server negli Stati Uniti).</p></div>
+        <div class="nrow"><span>Base giuridica e durata</span><p>Legittimo interesse a erogare il servizio richiesto per le chiamate tecniche necessarie; consenso esplicito e revocabile per la posizione. L'autore non conserva alcun dato: le durate di conservazione dei log sono quelle dei fornitori sopra indicati.</p></div>
+        <div class="nrow"><span>I tuoi diritti</span><p>Poiché non viene creato alcun archivio riconducibile a te, non esistono dati da consultare, correggere o cancellare presso il titolare. Restano esercitabili accesso, rettifica, cancellazione, limitazione, opposizione e portabilità scrivendo all'email indicata, e il reclamo al Garante per la protezione dei dati personali.</p></div>
+        <div class="note warn"><b>Nota per un uso istituzionale.</b> I caratteri tipografici sono caricati da Google Fonts, che comporta la trasmissione dell'indirizzo IP verso server extra-UE. Per una pubblicazione da parte di una pubblica amministrazione i font vanno ospitati sul proprio dominio, eliminando quella chiamata. È l'unica dipendenza extra-europea del progetto.</div>
+      </div>
+
+      <div class="sec"><h3>Avvertenze e limitazioni di responsabilità</h3>
+        <ul class="rules">
+          <li><b>L'app non riconosce i funghi.</b> Non identifica specie, non valuta commestibilità, non sostituisce in alcun modo il parere di un micologo. Fai sempre controllare il raccolto da un <b>Ispettorato micologico dell'ASL</b> prima di consumarlo. Molte specie mortali somigliano a specie commestibili e la cottura non elimina le tossine.</li>
+          <li><b>L'indice è una stima probabilistica</b> ricavata da dati meteorologici, non una misura né una garanzia. Un valore alto non assicura la presenza di funghi, un valore basso non ne esclude la presenza.</li>
+          <li><b>Le schede normative sono indicative e non fanno fede.</b> L'unico testo vincolante è l'atto ufficiale dell'ente competente sul territorio di raccolta. Verifica sempre permessi, limiti, giorni e divieti presso Regione, Comune, Comunità montana o ente parco prima di andare.</li>
+          <li><b>Resta a tuo carico</b> il possesso dei permessi, il rispetto dei limiti quantitativi e delle aree interdette, e la tua sicurezza in ambiente montano e boschivo.</li>
+          <li>L'autore non risponde di danni diretti o indiretti derivanti dall'uso dell'app, nei limiti consentiti dalla legge. Il software è fornito «così com'è», secondo la licenza MIT.</li>
+          <li><b>In caso di sospetta intossicazione chiama il 112</b> e conserva i resti del fungo e degli scarti di pulitura: servono per l'identificazione.</li>
+        </ul>
+      </div>
+
+      <div class="sec"><h3>Fonti e attribuzioni</h3>
+        <ul class="rules">
+          <li><b>Dati meteorologici</b> — Open-Meteo, licenza CC BY 4.0, elaborati da modelli dei servizi meteorologici nazionali.</li>
+          <li><b>Cartografia</b> — © contributori di OpenStreetMap, licenza ODbL. Vista rilievo © OpenTopoMap, licenza CC BY-SA.</li>
+          <li><b>Libreria cartografica</b> — Leaflet, licenza BSD-2.</li>
+          <li><b>Riferimenti normativi</b> — ISPRA, Network nazionale per lo studio della diversità micologica, e testi delle leggi regionali.</li>
+          <li><b>Caratteri</b> — Fraunces, Archivo e Space Mono, SIL Open Font License.</li>
+        </ul>
+        <p class="nsrc">Sottobosco è software libero rilasciato sotto licenza MIT: chiunque può usarlo, modificarlo e ridistribuirlo, anche a fini commerciali, mantenendo la nota di copyright.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="norme.js"></script>
+
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dettaglio località">
+  <header>
+   <div class="wrap">
+    <div style="flex:1;min-width:0">
+      <h2 id="shTitle">—</h2>
+      <p id="shSub">—</p>
+    </div>
+    <button class="iconbtn" id="shClose" aria-label="Chiudi">
+      <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+   </div>
+  </header>
+  <div class="body" id="shBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+"use strict";
+
+/* =========================================================
+   1. LUOGHI — aree vocate, coordinate indicative del comprensorio
+   ========================================================= */
+const LUOGHI = [
+ {n:"Gressoney",              r:"Valle d'Aosta",     la:45.775, lo:7.826,  b:"lariceti e abetaie"},
+ {n:"Val Vigezzo",            r:"Piemonte",          la:46.136, lo:8.470,  b:"faggete e betulle"},
+ {n:"Valsesia · Varallo",     r:"Piemonte",          la:45.813, lo:8.256,  b:"castagneti e faggete"},
+ {n:"Alta Langa · Ceva",      r:"Piemonte",          la:44.385, lo:8.031,  b:"noccioleti e querce"},
+ {n:"Valle Stura · Demonte",  r:"Piemonte",          la:44.315, lo:7.298,  b:"abetaie e larici"},
+ {n:"Valtellina · Albaredo",  r:"Lombardia",         la:46.083, lo:9.583,  b:"faggete e abetaie"},
+ {n:"Val Camonica · Borno",   r:"Lombardia",         la:45.945, lo:10.200, b:"faggete d'altura"},
+ {n:"Oltrepò · Varzi",        r:"Lombardia",         la:44.822, lo:9.203,  b:"castagneti"},
+ {n:"Triangolo Lariano",      r:"Lombardia",         la:45.930, lo:9.270,  b:"castagneti e faggete"},
+ {n:"Val di Fiemme",          r:"Trentino",          la:46.288, lo:11.461, b:"abetaie rosse"},
+ {n:"Folgaria",               r:"Trentino",          la:45.917, lo:11.170, b:"abetaie e faggete"},
+ {n:"Val di Non · Fondo",     r:"Trentino",          la:46.437, lo:11.138, b:"abetaie e larici"},
+ {n:"Val Pusteria",           r:"Alto Adige",        la:46.797, lo:11.936, b:"peccete e cembri"},
+ {n:"Altopiano di Asiago",    r:"Veneto",            la:45.877, lo:11.510, b:"abetaie e pascoli"},
+ {n:"Foresta del Cansiglio",  r:"Veneto",            la:46.060, lo:12.400, b:"faggeta storica"},
+ {n:"Lessinia",               r:"Veneto",            la:45.626, lo:11.037, b:"faggete e prati"},
+ {n:"Tarvisiano",             r:"Friuli",            la:46.505, lo:13.578, b:"abetaie e larici"},
+ {n:"Valli del Natisone",     r:"Friuli",            la:46.093, lo:13.432, b:"castagneti e faggete"},
+ {n:"Val d'Aveto",            r:"Liguria",           la:44.545, lo:9.443,  b:"faggete d'Appennino"},
+ {n:"Beigua · Sassello",      r:"Liguria",           la:44.475, lo:8.489,  b:"pinete e castagneti"},
+ {n:"Borgotaro",              r:"Emilia-Romagna",    la:44.489, lo:9.769,  b:"faggete del porcino IGP"},
+ {n:"Cimone · Sestola",       r:"Emilia-Romagna",    la:44.230, lo:10.775, b:"faggete e abetine"},
+ {n:"Bagno di Romagna",       r:"Emilia-Romagna",    la:43.844, lo:11.978, b:"faggete e abetine"},
+ {n:"Casentino",              r:"Toscana",           la:43.792, lo:11.870, b:"foreste casentinesi"},
+ {n:"Garfagnana",             r:"Toscana",           la:44.107, lo:10.410, b:"castagneti e faggete"},
+ {n:"Monte Amiata",           r:"Toscana",           la:42.881, lo:11.677, b:"faggete e castagneti"},
+ {n:"Mugello · Firenzuola",   r:"Toscana",           la:44.119, lo:11.379, b:"querceti e faggete"},
+ {n:"Colline Metallifere",    r:"Toscana",           la:43.048, lo:10.892, b:"sughere e lecci"},
+ {n:"Norcia · Sibillini",     r:"Umbria",            la:42.793, lo:13.093, b:"faggete e pascoli"},
+ {n:"Monte Subasio",          r:"Umbria",            la:43.070, lo:12.616, b:"lecci e roverelle"},
+ {n:"Cantiano · Catria",      r:"Marche",            la:43.470, lo:12.633, b:"faggete e cerrete"},
+ {n:"Amandola · Sibillini",   r:"Marche",            la:42.980, lo:13.359, b:"faggete"},
+ {n:"Monti Cimini",           r:"Lazio",             la:42.418, lo:12.234, b:"faggeta depressa e castagni"},
+ {n:"Monti Simbruini",        r:"Lazio",             la:41.887, lo:13.322, b:"faggete"},
+ {n:"Monti della Tolfa",      r:"Lazio",             la:42.150, lo:11.930, b:"cerrete e sughere"},
+ {n:"Pescasseroli",           r:"Abruzzo",           la:41.807, lo:13.788, b:"faggete del Parco"},
+ {n:"Bosco di Sant'Antonio",  r:"Abruzzo",           la:41.888, lo:14.067, b:"faggeta secolare"},
+ {n:"Capracotta",             r:"Molise",            la:41.827, lo:14.264, b:"abetina e faggete"},
+ {n:"Bagnoli Irpino",         r:"Campania",          la:40.832, lo:15.073, b:"Laceno, faggete e castagni"},
+ {n:"Cilento · Sanza",        r:"Campania",          la:40.253, lo:15.545, b:"faggete del Cervati"},
+ {n:"Foresta Umbra",          r:"Puglia",            la:41.826, lo:16.100, b:"faggeta del Gargano"},
+ {n:"Pollino",                r:"Basilicata",        la:39.977, lo:16.300, b:"faggete e pini loricati"},
+ {n:"Sila · Camigliatello",   r:"Calabria",          la:39.331, lo:16.470, b:"pinete di laricio"},
+ {n:"Serre · Serra S. Bruno", r:"Calabria",          la:38.575, lo:16.328, b:"abetina e faggete"},
+ {n:"Aspromonte",             r:"Calabria",          la:38.166, lo:15.833, b:"faggete e castagneti"},
+ {n:"Etna · Linguaglossa",    r:"Sicilia",           la:37.842, lo:15.141, b:"pinete e castagneti"},
+ {n:"Madonie",                r:"Sicilia",           la:37.808, lo:14.096, b:"querceti e faggete"},
+ {n:"Nebrodi · Cesarò",       r:"Sicilia",           la:37.845, lo:14.630, b:"faggete e sughere"},
+ {n:"Barbagia · Fonni",       r:"Sardegna",          la:40.116, lo:9.256,  b:"lecci e roverelle"},
+ {n:"Limbara · Tempio",       r:"Sardegna",          la:40.900, lo:9.100,  b:"sughere e graniti"}
+];
+
+/* =========================================================
+   2. MODELLO DELLA BUTTATA
+   L'indice combina cinque segnali agronomici. Nessuno di essi
+   misura i funghi: misurano le condizioni che li fanno uscire.
+   ========================================================= */
+const PAST = 28, FUT = 7;                 // giorni richiesti all'API
+const IDX_START = 18;                     // primo giorno calcolabile (serve la finestra -16)
+
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const sum=(a,i,j)=>{let s=0;for(let k=Math.max(0,i);k<=Math.min(a.length-1,j);k++)s+=(a[k]??0);return s};
+const avg=(a,i,j)=>{let s=0,n=0;for(let k=Math.max(0,i);k<=Math.min(a.length-1,j);k++){if(a[k]!=null){s+=a[k];n++}}return n?s/n:null};
+
+function indiceGiorno(d,t){
+  const P=d.precipitation_sum, Tm=d.temperature_2m_mean, Tx=d.temperature_2m_max, Tn=d.temperature_2m_min, E=d.et0_fao_evapotranspiration;
+
+  // a) pioggia d'innesco: quella caduta 6–16 giorni fa, che oggi diventa carpoforo
+  const pIn = sum(P,t-16,t-6);
+  const sIn = 1-Math.exp(-pIn/38);
+  // evento singolo significativo: una bagnata vera conta più di pioviggine diffusa
+  let maxDay=0; for(let k=t-16;k<=t-6;k++) maxDay=Math.max(maxDay,P[k]??0);
+  const sEv = clamp(maxDay/14);
+
+  // b) mantenimento: umidità dell'aria e del lettiere negli ultimi 5 giorni
+  const sMan = 1-Math.exp(-sum(P,t-5,t)/16);
+
+  // c) bilancio idrico: pioggia meno evapotraspirazione su 20 giorni
+  const bil = sum(P,t-20,t) - sum(E,t-20,t);
+  const sBil = bil<-30 ? 0 : bil<0 ? (bil+30)/30*0.55 : bil<70 ? 0.55+bil/70*0.45 : clamp(1-(bil-70)/220,0.6,1);
+
+  // d) temperatura: ottimo attorno ai 14–15 °C di media
+  const tMed = avg(Tm,t-9,t) ?? 12;
+  const sTemp = Math.exp(-Math.pow(tMed-14.5,2)/(2*Math.pow(6.2,2)));
+
+  // e) sbalzo termico: il raffreddamento dopo la pioggia sblocca la fruttificazione
+  const t1 = avg(Tm,t-15,t-10), t2 = avg(Tm,t-7,t-2);
+  const drop = (t1!=null&&t2!=null) ? t1-t2 : 0;
+  const sSb = clamp(drop/6);
+
+  // penalità: gelo e canicola bloccano il micelio
+  const tmin = Math.min(...[...Array(7)].map((_,k)=>Tn[t-k]??99));
+  const tmax = Math.max(...[...Array(7)].map((_,k)=>Tx[t-k]??-99));
+  const pGelo = tmin<-1 ? 0.35 : tmin<1.5 ? 0.7 : 1;
+  const pCald = tmax>33 ? 0.45 : tmax>29 ? 0.78 : 1;
+  const pSecc = sum(P,t-12,t)<4 ? 0.45 : 1;
+
+  const grezzo = 0.30*sIn + 0.10*sEv + 0.10*sMan + 0.20*sBil + 0.22*sTemp + 0.08*sSb;
+  const val = Math.round(100*clamp(grezzo*pGelo*pCald*pSecc));
+
+  return {val, parti:{
+    "Pioggia d'innesco (6–16 gg fa)":{v:Math.round(100*(0.75*sIn+0.25*sEv)), d:pIn.toFixed(0)+" mm"},
+    "Umidità recente (0–5 gg)":{v:Math.round(100*sMan), d:sum(P,t-5,t).toFixed(0)+" mm"},
+    "Bilancio idrico del suolo":{v:Math.round(100*sBil), d:(bil>0?"+":"")+bil.toFixed(0)+" mm"},
+    "Temperatura del periodo":{v:Math.round(100*sTemp), d:tMed.toFixed(1)+" °C"},
+    "Sbalzo termico":{v:Math.round(100*sSb), d:(drop>0?"−":"+")+Math.abs(drop).toFixed(1)+" °C"}
+  }, freni:{pGelo,pCald,pSecc}, tMed, pIn, bil};
+}
+
+function serieIndice(d){
+  const out=[];
+  for(let t=IDX_START;t<d.time.length;t++) out.push({data:d.time[t],val:indiceGiorno(d,t).val,pioggia:d.precipitation_sum[t]??0,futuro:t>PAST});
+  return out;
+}
+
+const SCALA=[[0,"#5A6B5E"],[26,"#6E8B3D"],[45,"#A8A233"],[62,"#C98A3C"],[80,"#D9622B"]];
+const colore=v=>{let c=SCALA[0][1];for(const[s,k]of SCALA) if(v>=s) c=k; return c};
+const giudizio=v=>
+  v>=80?["Buttata in corso","Condizioni piene: pioggia, calore e sbalzo si sono allineati. È la settimana giusta."]:
+  v>=62?["Fungaia attiva","Il bosco sta producendo. Cerca versanti in ombra e impluvi, dove l'acqua si è fermata."]:
+  v>=45?["In salita","Qualcosa si muove, a macchie. Meglio le quote e le esposizioni più fresche."]:
+  v>=26?["Sotto soglia","Manca ancora l'innesco o il suolo è troppo asciutto. Rimanda di qualche giorno."]:
+  ["Fermo","Il micelio non ha di che lavorare. Serve una pioggia vera e poi due settimane."];
+
+/* =========================================================
+   3. STAGIONALITÀ — cosa cercare, per mese e per quota
+   ========================================================= */
+const SPECIE=[
+ {n:"Porcino nero",e:"Boletus aereus",m:[6,7,8,9,10],q:[0,900],  h:"Querce, lecci e castagni. Ama il caldo, esce prima degli altri porcini."},
+ {n:"Porcino estivo",e:"Boletus reticulatus",m:[5,6,7,8,9],q:[0,1200],h:"Latifoglie di collina. È il primo a comparire dopo i temporali estivi."},
+ {n:"Porcino",e:"Boletus edulis",m:[8,9,10,11],q:[600,2000], h:"Faggete e abetaie. Vuole suolo fresco e sbalzo termico marcato."},
+ {n:"Porcino dei pini",e:"Boletus pinophilus",m:[9,10,11],q:[400,1800],h:"Pinete e castagneti su terreno acido, spesso tra muschio e aghi."},
+ {n:"Ovolo buono",e:"Amanita caesarea",m:[7,8,9,10],q:[0,1000],h:"Querceti e castagneti caldi e assolati. Raccogli solo l'ovolo aperto e riconoscibile."},
+ {n:"Galletto",e:"Cantharellus cibarius",m:[6,7,8,9,10],q:[200,1800],h:"A gruppi tra muschio e felci, resiste bene anche con poca pioggia."},
+ {n:"Trombetta dei morti",e:"Craterellus cornucopioides",m:[9,10,11],q:[300,1500],h:"Faggete umide, mimetizzata nella lettiera. Cerca a terra, molto lentamente."},
+ {n:"Chiodino",e:"Armillaria mellea",m:[9,10,11,12],q:[0,1400],h:"A ciuffi su ceppaie e radici, arriva con i primi freddi. Va sempre bollito e scolato."},
+ {n:"Mazza di tamburo",e:"Macrolepiota procera",m:[8,9,10,11],q:[0,1500],h:"Radure, margini di bosco e pascoli. Solo il cappello, il gambo è fibroso."},
+ {n:"Sanguinello",e:"Lactarius deliciosus",m:[9,10,11],q:[300,1600],h:"Pinete: al taglio il latice è arancio carota."},
+ {n:"Prataiolo",e:"Agaricus campestris",m:[9,10,11],q:[0,1200],h:"Prati concimati e pascoli dopo le piogge. Attenzione alle amanite bianche."},
+ {n:"Pioppino",e:"Cyclocybe aegerita",m:[3,4,10,11,12],q:[0,800],h:"A cespi su pioppi e salici, anche in pianura."},
+ {n:"Spugnola",e:"Morchella spp.",m:[3,4,5],q:[0,1500],h:"Primaverile, su suoli disturbati e golene. Tossica da cruda."},
+ {n:"Prugnolo",e:"Calocybe gambosa",m:[4,5],q:[0,1400],h:"Cerchi nei prati e lungo le siepi, a primavera."}
+];
+const specieFor=(mese,quota)=>SPECIE.filter(s=>s.m.includes(mese)&&quota>=s.q[0]-150&&quota<=s.q[1]+250).slice(0,6);
+
+/* =========================================================
+   4. DATI — Open-Meteo, gratuito e senza chiave
+   ========================================================= */
+const API="https://api.open-meteo.com/v1/forecast";
+const VARS="precipitation_sum,temperature_2m_max,temperature_2m_min,temperature_2m_mean,et0_fao_evapotranspiration";
+const q=s=>document.querySelector(s);
+const store={
+  get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return window.__m&&window.__m[k]||null}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){window.__m=window.__m||{};window.__m[k]=v}}
+};
+
+function url(lats,lons){
+  return `${API}?latitude=${lats.join(",")}&longitude=${lons.join(",")}&daily=${VARS}`+
+         `&past_days=${PAST}&forecast_days=${FUT}&timezone=Europe%2FRome`;
+}
+
+async function scarica(){
+  const r=await fetch(url(LUOGHI.map(l=>l.la),LUOGHI.map(l=>l.lo)));
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const j=await r.json();
+  const arr=Array.isArray(j)?j:[j];
+  return arr.map((o,i)=>{
+    const d=o.daily, oggi=indiceGiorno(d,PAST), serie=serieIndice(d);
+    const fut=serie.filter(s=>s.futuro);
+    return {...LUOGHI[i], quota:Math.round(o.elevation??600), daily:d, oggi, serie,
+            picco:fut.length?fut.reduce((a,b)=>b.val>a.val?b:a):null};
+  });
+}
+
+async function sonda(la,lo){
+  const r=await fetch(url([la.toFixed(4)],[lo.toFixed(4)]));
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const j=await r.json(); const o=Array.isArray(j)?j[0]:j; const d=o.daily;
+  const serie=serieIndice(d), fut=serie.filter(s=>s.futuro);
+  return {n:"Punto sondato", r:`${la.toFixed(3)}° N · ${lo.toFixed(3)}° E`, b:"rilievo dal punto scelto sulla mappa",
+          la,lo, quota:Math.round(o.elevation??0), daily:d, oggi:indiceGiorno(d,PAST), serie,
+          picco:fut.length?fut.reduce((a,b)=>b.val>a.val?b:a):null};
+}
+
+/* =========================================================
+   5. MAPPA
+   ========================================================= */
+let map, strato, cerchi=[], probeMode=false, probeMarker=null;
+/* Entrambe le fonti sono libere e non richiedono alcuna chiave.
+   Il tema scuro nasce da un filtro CSS applicato ai tasselli OSM. */
+const TILES={
+  scuro:{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+         a:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',x:18,sub:"abc",buio:true},
+  rilievo:{u:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+         a:'Carta &copy; <a href="https://opentopomap.org">OpenTopoMap</a> · dati &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',x:16,sub:"abc",buio:false}
+};
+let tipoTile="scuro";
+function metti(tipo){
+  if(strato) map.removeLayer(strato);
+  const T=TILES[tipo];
+  strato=L.tileLayer(T.u,{attribution:T.a,maxZoom:T.x,subdomains:T.sub}).addTo(map);
+  document.getElementById("map").classList.toggle("buio",T.buio);
+}
+
+function initMap(){
+  map=L.map("map",{zoomControl:false,attributionControl:true,minZoom:5,maxZoom:16})
+       .setView([42.6,12.5],5.6);
+  L.control.zoom({position:"topleft"}).addTo(map);
+  metti("scuro");
+  map.on("click",e=>{
+    if(!probeMode) return;
+    const {lat,lng}=e.latlng;
+    if(lat<35.2||lat>47.3||lng<6.2||lng>19.0){toast("Scegli un punto dentro i confini italiani.");return}
+    probeMode=false; q("#btnProbe").classList.remove("armed"); q("#btnProbe").textContent="Sonda un punto";
+    if(probeMarker) map.removeLayer(probeMarker);
+    probeMarker=L.circleMarker([lat,lng],{radius:8,color:"#F2EFE4",weight:2,fillColor:"#C98A3C",fillOpacity:.9}).addTo(map);
+    toast("Calcolo l'indice per il punto…");
+    sonda(lat,lng).then(apri).catch(()=>toast("Dati non raggiungibili per quel punto."));
+  });
+}
+
+function disegna(dati){
+  cerchi.forEach(c=>map.removeLayer(c)); cerchi=[];
+  const top=[...dati].sort((a,b)=>b.oggi.val-a.oggi.val).slice(0,3).map(d=>d.n);
+  dati.forEach(d=>{
+    const v=d.oggi.val, c=colore(v);
+    if(top.includes(d.n)&&v>45){
+      const p=L.circleMarker([d.la,d.lo],{radius:9,color:c,weight:1.6,fill:false,opacity:.55,className:"pulse",interactive:false}).addTo(map);
+      cerchi.push(p);
+    }
+    const m=L.circleMarker([d.la,d.lo],{
+      radius:6+v/12, color:"#14180F", weight:1.4, fillColor:c, fillOpacity:.92
+    }).addTo(map);
+    m.bindTooltip(`${d.n} · ${v}`,{direction:"top",offset:[0,-6],className:"tt"});
+    m.on("click",()=>apri(d));
+    cerchi.push(m);
+  });
+}
+
+/* =========================================================
+   6. GRAFICA DEL PANNELLO
+   ========================================================= */
+function gauge(v){
+  const R=52,ri=27,ro=45,N=54,att=Math.round(N*v/100),c=colore(v);
+  let g="";
+  for(let i=0;i<N;i++){
+    const a=(i/N)*2*Math.PI-Math.PI/2;
+    const x1=R+ri*Math.cos(a),y1=R+ri*Math.sin(a),x2=R+ro*Math.cos(a),y2=R+ro*Math.sin(a);
+    g+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${i<att?c:"#2B331F"}" stroke-width="2.6" stroke-linecap="round"/>`;
+  }
+  return `<svg width="104" height="104" viewBox="0 0 104 104" role="img" aria-label="Indice ${v} su 100">
+    ${g}<text x="52" y="52" text-anchor="middle" dominant-baseline="central" fill="${c}"
+    font-family="Space Mono, monospace" font-size="27" font-weight="700">${v}</text>
+    <text x="52" y="70" text-anchor="middle" fill="#8C947E" font-family="Archivo,sans-serif" font-size="8.5" letter-spacing="1.2">SU 100</text></svg>`;
+}
+
+function timeline(serie,W){
+  W=Math.max(300,Math.round(W||340));
+  const H=214, ml=32, mr=36, mt=16, mb=26;
+  const iTop=mt, iBot=mt+104;                 // fascia dell'indice
+  const rBot=H-mb, rTop=rBot-52;              // fascia delle piogge
+  const n=serie.length, pw=(W-ml-mr)/n;
+  const cx=i=>ml+pw*(i+.5);
+  const yi=v=>iBot-(v/100)*(iBot-iTop);
+  const maxP=Math.max(8,...serie.map(s=>s.pioggia));
+  const yr=p=>rBot-(p/maxP)*(rBot-rTop);
+
+  let g="",barre="",xlab="";
+  [0,50,100].forEach(v=>{
+    g+=`<line x1="${ml}" y1="${yi(v)}" x2="${W-mr}" y2="${yi(v)}" stroke="#2B331F" stroke-width="1"/>`
+     + `<text x="${ml-7}" y="${yi(v)+3.5}" text-anchor="end" fill="#6F7867" font-family="Space Mono,monospace" font-size="10">${v}</text>`;
+  });
+  g+=`<line x1="${ml}" y1="${rBot}" x2="${W-mr}" y2="${rBot}" stroke="#2B331F" stroke-width="1"/>`
+   + `<text x="${W-mr+6}" y="${rTop+4}" fill="#5F7E9E" font-family="Space Mono,monospace" font-size="10">${Math.round(maxP)}</text>`
+   + `<text x="${W-mr+6}" y="${rBot+4}" fill="#6F7867" font-family="Space Mono,monospace" font-size="10">mm</text>`;
+
+  const passo=Math.max(1,Math.ceil(n/7));
+  serie.forEach((s,i)=>{
+    const bw=Math.max(2.5,pw*0.62), x=cx(i)-bw/2, y=yr(s.pioggia);
+    if(s.pioggia>0.05) barre+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(rBot-y).toFixed(1)}" fill="${s.futuro?"#3B5570":"#4E7EA8"}" rx="1.5"/>`;
+    if(i%passo===0||(i===n-1 && (n-1)%passo>passo*0.5)){
+      const d=new Date(s.data);
+      xlab+=`<text x="${cx(i).toFixed(1)}" y="${H-8}" text-anchor="middle" fill="#6F7867" font-family="Space Mono,monospace" font-size="10">${d.getDate()}/${d.getMonth()+1}</text>`;
+    }
+  });
+
+  const idxOggi=serie.findIndex(s=>s.futuro)-1;
+  const tagl=idxOggi<0?n-1:idxOggi;
+  const seg=(a,b)=>serie.slice(a,b+1).map((s,k)=>(k?"L":"M")+cx(a+k).toFixed(1)+" "+yi(s.val).toFixed(1)).join(" ");
+  const area=`${seg(0,tagl)} L ${cx(tagl).toFixed(1)} ${iBot} L ${cx(0).toFixed(1)} ${iBot} Z`;
+
+  const best=serie.reduce((a,b)=>b.val>a.val?b:a), bi=serie.indexOf(best);
+  const xo=cx(tagl)+pw/2;
+  const et=s=>{const d=new Date(s.data);return d.getDate()+"/"+(d.getMonth()+1)};
+
+  return `<svg class="tl" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img"
+    aria-label="Indice di buttata da ${et(serie[0])} a ${et(serie[n-1])}, picco il ${et(best)} a quota ${best.val}">
+    ${g}
+    <path d="${area}" fill="#C98A3C" opacity=".07"/>
+    ${barre}
+    <line x1="${xo.toFixed(1)}" y1="${iTop-6}" x2="${xo.toFixed(1)}" y2="${rBot}" stroke="#F2EFE4" stroke-width="1" stroke-dasharray="3 4" opacity=".45"/>
+    <text x="${(xo+5).toFixed(1)}" y="${iTop-1}" fill="#F2EFE4" font-family="Space Mono,monospace" font-size="10" opacity=".6">oggi</text>
+    <path d="${seg(0,tagl)}" fill="none" stroke="#C98A3C" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="${seg(tagl,n-1)}" fill="none" stroke="#C98A3C" stroke-width="2.4" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round" opacity=".8"/>
+    <circle cx="${cx(bi).toFixed(1)}" cy="${yi(best.val).toFixed(1)}" r="4.5" fill="#C98A3C" stroke="#14180F" stroke-width="1.6"/>
+    <text x="${cx(bi).toFixed(1)}" y="${(yi(best.val)-10).toFixed(1)}" text-anchor="middle" fill="#C98A3C" font-family="Space Mono,monospace" font-size="11" font-weight="700">${best.val}</text>
+    <circle cx="${cx(tagl).toFixed(1)}" cy="${yi(serie[tagl].val).toFixed(1)}" r="3.4" fill="#14180F" stroke="#C98A3C" stroke-width="2"/>
+    ${xlab}
+  </svg>`;
+}
+
+function apri(d){
+  CORRENTE=d;
+  const [tit,txt]=giudizio(d.oggi.val);
+  q("#shTitle").textContent=d.n;
+  q("#shSub").textContent=`${d.r} · ${d.quota} m · ${d.b}`;
+  const mese=new Date().getMonth()+1, sp=specieFor(mese,d.quota);
+  const p=d.oggi.parti;
+  const freni=[];
+  if(d.oggi.freni.pSecc<1) freni.push("dodici giorni quasi senza pioggia: il suolo non trattiene");
+  if(d.oggi.freni.pCald<1) freni.push("punte di calore recenti che asciugano la lettiera");
+  if(d.oggi.freni.pGelo<1) freni.push("gelate negli ultimi giorni che fermano il micelio");
+
+  q("#shBody").innerHTML=`
+   <div class="gauge">${gauge(d.oggi.val)}
+     <div><p class="verdict">${tit}</p><p>${txt}</p></div></div>
+
+   ${freni.length?`<div class="note warn">Cosa frena: ${freni.join("; ")}.</div>`:""}
+
+   <div class="sec"><h3>Da cosa nasce l'indice</h3>
+     ${Object.entries(p).map(([k,o])=>`
+       <div class="bar"><div class="lbl"><span>${k}</span><span>${o.d}</span></div>
+       <div class="track"><i style="width:${o.v}%;background:${colore(o.v)}"></i></div></div>`).join("")}
+   </div>
+
+   <div class="sec"><h3>Piogge e previsione a sette giorni</h3>
+     ${timeline(d.serie, (q("#shBody").clientWidth||372)-32)}
+     <div class="tlkey"><span><b style="background:#4E7EA8"></b>pioggia caduta</span>
+       <span><b style="background:#3B5570"></b>pioggia prevista</span>
+       <span><b style="background:#C98A3C"></b>indice di buttata</span></div>
+     ${d.picco?`<div class="note">Giorno migliore in vista: <b>${new Date(d.picco.data).toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long"})}</b>, indice ${d.picco.val}.</div>`:""}
+     <div class="stat">
+       <div><b>${d.oggi.pIn.toFixed(0)}</b><span>mm d'innesco</span></div>
+       <div><b>${d.oggi.tMed.toFixed(1)}</b><span>°C medi</span></div>
+       <div><b>${d.oggi.bil>0?"+":""}${d.oggi.bil.toFixed(0)}</b><span>bilancio idrico</span></div>
+     </div>
+   </div>
+
+   <div class="sec"><h3>Cosa cercare adesso · ${d.quota} m</h3>
+     ${sp.length?sp.map(s=>`<div class="sp"><span class="dot"></span><div>
+        <h4>${s.n} <em>${s.e}</em></h4><p>${s.h}</p></div></div>`).join("")
+      :`<p style="color:var(--nebbia);font-size:13.5px">In questo mese e a questa quota non c'è una specie tipica da segnalare.</p>`}
+     <div class="note warn">Fai controllare il raccolto all'Ispettorato micologico dell'ASL prima di mangiarlo. L'app non identifica le specie: <a href="#" onclick="vaiInfo();return false" style="color:var(--porcino)">leggi le avvertenze</a>.</div>
+   </div>
+
+   <div class="sec"><h3>Cosa dice la norma in ${d.r}</h3>
+     <div class="nbox">${schedaRegione(d.r,true)}</div>
+     <button class="btn ghost" style="width:100%;text-align:center;margin-top:12px" onclick="vaiNorme('${d.r.replace(/'/g,"\\'")}')">Apri la scheda completa</button>
+   </div>
+
+   <button class="btn ghost" style="width:100%;text-align:center;margin-top:20px" onclick="apriMappaEsterna(${d.la},${d.lo})">Apri nelle mappe del telefono</button>
+  `;
+  q("#sheet").classList.add("open");
+  document.body.style.overflow="hidden";
+}
+function vaiScheda(v){
+  document.querySelectorAll(".tab").forEach(t=>{
+    const on=t.dataset.v===v;
+    t.setAttribute("aria-selected",on);
+    if(on) t.scrollIntoView({block:"nearest",inline:"center"});
+  });
+  document.querySelectorAll(".view").forEach(s=>s.classList.toggle("on",s.id==="v-"+v));
+  const el=q("#v-"+v); if(el) el.scrollTop=0;
+}
+function vaiInfo(){ q("#shClose").click(); vaiScheda("info"); }
+function vaiNorme(reg){
+  q("#shClose").click();
+  vaiScheda("rules");
+  const s=q("#selReg");
+  if(s && [...s.options].some(o=>o.value===reg)){ s.value=reg; s.onchange(); }
+}
+function apriMappaEsterna(la,lo){
+  const u=/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
+    ?`https://maps.apple.com/?ll=${la},${lo}&q=Zona%20di%20raccolta`
+    :`https://www.google.com/maps/search/?api=1&query=${la},${lo}`;
+  window.open(u,"_blank","noopener");
+}
+
+/* =========================================================
+   7. ELENCHI
+   ========================================================= */
+function scheda(d,i){
+  return `<button class="card" data-n="${encodeURIComponent(d.n)}">
+    ${i!=null?`<span class="rank">${String(i+1).padStart(2,"0")}</span>`:""}
+    <span class="val" style="color:${colore(d.oggi.val)}">${d.oggi.val}<small>INDICE</small></span>
+    <span style="flex:1;min-width:0"><h3>${d.n}</h3>
+      <p>${d.r} · ${d.quota} m${d.dist!=null?` · ${d.dist.toFixed(0)} km`:""}</p></span>
+  </button>`;
+}
+function renderList(dati){
+  const o=[...dati].sort((a,b)=>b.oggi.val-a.oggi.val);
+  q("#listBox").innerHTML=
+    `<h2 style="font-size:20px;margin-bottom:3px">Dove sta buttando</h2>
+     <p style="color:var(--nebbia);font-size:13px;margin:0 0 16px">${LUOGHI.length} comprensori vocati, ordinati per indice di oggi.</p>`
+    + o.map(scheda).join("");
+  aggancia("#listBox",dati);
+}
+function aggancia(sel,dati){
+  document.querySelectorAll(sel+" .card").forEach(b=>{
+    b.onclick=()=>{const n=decodeURIComponent(b.dataset.n);const d=dati.find(x=>x.n===n);if(d)apri(d)};
+  });
+}
+const km=(a,b,c,d)=>{const R=6371,r=x=>x*Math.PI/180,dA=r(c-a),dB=r(d-b);
+  const h=Math.sin(dA/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dB/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
+
+function renderNear(dati){
+  const box=q("#nearBox");
+  box.innerHTML=`<div class="msg"><b>Cerca vicino a te</b>La posizione resta sul telefono: serve solo per ordinare i comprensori per distanza.<br><button class="btn" id="geo">Usa la mia posizione</button></div>`;
+  q("#geo").onclick=()=>{
+    if(!navigator.geolocation){toast("Il browser non espone la posizione.");return}
+    box.innerHTML=`<div class="msg">Cerco la posizione…</div>`;
+    navigator.geolocation.getCurrentPosition(p=>{
+      const {latitude:la,longitude:lo}=p.coords;
+      const o=dati.map(d=>({...d,dist:km(la,lo,d.la,d.lo)})).sort((a,b)=>a.dist-b.dist).slice(0,12);
+      box.innerHTML=`<h2 style="font-size:20px;margin-bottom:3px">I dodici più vicini</h2>
+        <p style="color:var(--nebbia);font-size:13px;margin:0 0 16px">In linea d'aria dalla tua posizione.</p>`
+        +o.map(d=>scheda(d)).join("")
+        +`<button class="btn ghost" style="width:100%;text-align:center;margin-top:6px" id="probeHere">Calcola l'indice esattamente qui</button>`;
+      aggancia("#nearBox",dati);
+      q("#probeHere").onclick=()=>{toast("Calcolo l'indice per la tua posizione…");sonda(la,lo).then(apri).catch(()=>toast("Dati non raggiungibili."))};
+      if(map){map.setView([la,lo],9);}
+    },()=>{
+      box.innerHTML=`<div class="msg"><b>Posizione non disponibile</b>Hai negato il permesso, oppure il segnale è assente. Puoi comunque toccare un punto sulla mappa con “Sonda un punto”.</div>`;
+    },{timeout:9000,enableHighAccuracy:false});
+  };
+}
+
+/* =========================================================
+   7bis. NORME — schede regionali con stato di verifica
+   ========================================================= */
+const N=()=>window.NORME||{regioni:{},nazionale:{}};
+const campo=(et,v)=>v?`<div class="nrow"><span>${et}</span><p>${v}</p></div>`:"";
+
+function badge(st){
+  return st==="verificato"
+    ? `<span class="tagv">verificato</span>`
+    : `<span class="tagd">da validare</span>`;
+}
+
+function schedaRegione(nome,compatta){
+  const r=N().regioni[nome];
+  if(!r) return `<div class="note">Nessuna scheda per ${nome}.</div>`;
+  const vuoti=["autorizzazione","limite","giorni","sanzioni"].filter(k=>!r[k]);
+  const mancanti=vuoti.length
+    ? `<div class="note warn"><b>Scheda incompleta.</b> Non risultano verificati: ${vuoti.join(", ")}. L'app non mostra dati non controllati. Consulta la fonte ufficiale.</div>` : "";
+  return `
+   <div class="nhead"><h3>${nome}</h3>${badge(r.stato)}</div>
+   ${r.legge?`<p class="nlaw">${r.legge_url?`<a href="${r.legge_url}" target="_blank" rel="noopener">${r.legge}</a>`:r.legge}</p>`:""}
+   ${r.nota?`<p class="nlaw">${r.nota}</p>`:""}
+   ${campo("Autorizzazione",r.autorizzazione)}
+   ${campo("Chi la rilascia",r.chi_rilascia)}
+   ${campo("Costo",r.costo)}
+   ${r.costo_nota?`<div class="nrow"><span>Nota sul costo</span><p>${r.costo_nota}</p></div>`:""}
+   ${campo("Limite giornaliero",r.limite)}
+   ${campo("Minori",r.minori)}
+   ${campo("Giorni consentiti",r.giorni)}
+   ${campo("Orari",r.orari)}
+   ${campo("Dove si può raccogliere",r.dove)}
+   ${campo("Sanzioni",r.sanzioni)}
+   ${mancanti}
+   <p class="nsrc">${r.verificato_il?`Verificato il ${r.verificato_il}. `:""}Fonte ufficiale: <a href="${r.ispra}" target="_blank" rel="noopener">scheda ISPRA della Regione</a>.</p>
+   ${compatta?"":`<div class="note">${N().avvertenza}</div>`}`;
+}
+
+function renderNorme(){
+  const box=q("#normeBox"), naz=N().nazionale, regs=Object.keys(N().regioni);
+  const ok=regs.filter(k=>N().regioni[k].stato==="verificato").length;
+  box.innerHTML=`
+   <h2 style="font-size:22px;margin-bottom:3px">Norme regionali</h2>
+   <p style="color:var(--nebbia);font-size:13px;margin:0 0 14px">${ok} schede su ${regs.length} verificate. Le altre riportano solo la fonte ufficiale.</p>
+
+   <label class="lbl2" for="selReg">Regione</label>
+   <select id="selReg">${regs.map(k=>`<option>${k}</option>`).join("")}</select>
+   <div id="regBox" class="nbox"></div>
+
+   <div class="sec"><h3>Quadro nazionale</h3>
+     <p class="nlaw"><a href="${naz.url}" target="_blank" rel="noopener">${naz.legge}</a> · ${naz.regolamento}</p>
+     <ul class="rules">${(naz.principi||[]).map(p=>`<li>${p}</li>`).join("")}</ul>
+     <p class="nsrc">Verificato il ${naz.verificato_il}. Fonte: <a href="${naz.fonte_url}" target="_blank" rel="noopener">${naz.fonte}</a>.</p>
+   </div>
+
+   <div class="note warn">
+     <b>Nessuna app riconosce i funghi al posto tuo.</b> Prima di consumare il raccolto fallo controllare da un <b>Ispettorato micologico dell'ASL</b>. Molte specie mortali somigliano a specie commestibili e la cottura non elimina le tossine. In caso di sospetto avvelenamento chiama il <b>112</b> e conserva i resti del fungo.
+   </div>
+   <div class="note">
+     <b>Come funziona l'indice.</b> Non esiste un sensore che misuri i funghi. L'app stima la probabilità di buttata dai dati meteo: pioggia d'innesco di 6–16 giorni fa, bilancio idrico del suolo, temperatura media e sbalzo termico. È una previsione agronomica, non una certezza.
+   </div>
+   <p class="nsrc">Base dati normativa versione ${N().versione} — ${N().redazione}.</p>`;
+  const sel=q("#selReg"), dis=()=>{q("#regBox").innerHTML=schedaRegione(sel.value)};
+  sel.onchange=dis;
+  const g=DATI&&CORRENTE&&regs.includes(CORRENTE.r)?CORRENTE.r:"Emilia-Romagna";
+  if(regs.includes(g)) sel.value=g;
+  dis();
+}
+/* =========================================================
+   8. AVVIO
+   ========================================================= */
+let DATI=null, CORRENTE=null;
+let _rz;
+window.addEventListener("resize",()=>{
+  clearTimeout(_rz);
+  _rz=setTimeout(()=>{ if(CORRENTE && q("#sheet").classList.contains("open")) apri(CORRENTE); },220);
+});
+function toast(t){const e=q("#toast");e.textContent=t;e.classList.add("on");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("on"),3200)}
+
+function stamp(ts){
+  q("#stampDate").textContent=new Date(ts).toLocaleString("it-IT",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+}
+
+async function carica(forza){
+  const c=store.get("cache");
+  if(!forza && c && Date.now()-c.ts < 3*3600*1000){
+    // ricalcolo dai dati grezzi: l'indice dipende dal giorno, non solo dal download
+    DATI=c.dati; usa(DATI); stamp(c.ts); return;
+  }
+  q("#refreshIcon").classList.add("spin");
+  q("#listBox").innerHTML=`<div class="skel"></div>`.repeat(6);
+  try{
+    DATI=await scarica();
+    store.set("cache",{ts:Date.now(),dati:DATI});
+    usa(DATI); stamp(Date.now());
+  }catch(err){
+    if(c){DATI=c.dati;usa(DATI);stamp(c.ts);toast("Rete assente: mostro l'ultimo rilevamento salvato.")}
+    else{
+      q("#listBox").innerHTML=`<div class="msg"><b>Dati non raggiungibili</b>Serve una connessione per il primo caricamento. Riprova quando sei in linea.<br><button class="btn" onclick="carica(true)">Riprova</button></div>`;
+      toast("Nessun dato disponibile.");
+    }
+  }finally{ q("#refreshIcon").classList.remove("spin"); }
+}
+function usa(d){ disegna(d); renderList(d); renderNear(d); }
+renderNorme();
+
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-selected",x===t));
+    document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+t.dataset.v));
+    if(t.dataset.v==="map"&&map) setTimeout(()=>map.invalidateSize(),120);
+  };
+});
+q("#shClose").onclick=()=>{q("#sheet").classList.remove("open");document.body.style.overflow=""};
+q("#btnRefresh").onclick=()=>carica(true);
+q("#btnProbe").onclick=e=>{
+  probeMode=!probeMode;
+  e.currentTarget.classList.toggle("armed",probeMode);
+  e.currentTarget.textContent=probeMode?"Tocca la mappa":"Sonda un punto";
+  if(probeMode) toast("Tocca un punto qualsiasi: calcolo l'indice lì.");
+};
+q("#btnLayer").onclick=e=>{
+  tipoTile=tipoTile==="scuro"?"rilievo":"scuro";
+  metti(tipoTile);
+  e.currentTarget.textContent=tipoTile==="scuro"?"Rilievo":"Scuro";
+};
+window.addEventListener("keydown",e=>{if(e.key==="Escape")q("#shClose").click()});
+
+initMap();
+carica(false);
+if("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+</script>
+</body>
+</html>
