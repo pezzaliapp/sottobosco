@@ -371,7 +371,7 @@ select{
 "use strict";
 
 /* Versione dell'app. Va tenuta allineata a VERSIONE in sw.js. */
-const APP_VER = "1.3.0";
+const APP_VER = "1.4.0";
 const APP_DATA = "30 agosto 2026";
 
 /* =========================================================
@@ -595,10 +595,14 @@ function initMap(){
     if(lat<35.2||lat>47.3||lng<6.2||lng>19.0){toast("Scegli un punto dentro i confini italiani.");return}
 
     if(markMode){
+      if(map.getZoom()<12){
+        toast("Avvicina la mappa: a questo zoom sbaglieresti di chilometri.");
+        return;
+      }
       markMode=false;
       const b=q("#btnMark"); b.classList.remove("armed"); b.textContent="Segna una fungaia";
       const nome=prompt("Nome della fungaia (resta solo su questo telefono):","");
-      if(nome!==null) nuovaFungaia(lat,lng,nome.trim());
+      if(nome!==null) nuovaFungaia(lat,lng,nome.trim(),{precisione:null,origine:"mappa"});
       return;
     }
 
@@ -853,13 +857,47 @@ const ESITI=[
 const mie=()=>store.get("fungaie")||[];
 const salvaMie=a=>store.set("fungaie",a);
 
-function nuovaFungaia(la,lo,nome){
+function nuovaFungaia(la,lo,nome,extra){
   const a=mie();
-  a.push({id:"f"+Date.now(), nome:nome||"Fungaia senza nome", la:+la.toFixed(5), lo:+lo.toFixed(5), oss:[]});
+  a.push(Object.assign({
+    id:"f"+Date.now(), nome:nome||"Fungaia senza nome",
+    la:+la.toFixed(6), lo:+lo.toFixed(6), oss:[]
+  }, extra||{}));
   salvaMie(a);
   if(DATI) disegna(DATI);
   renderMie();
   toast("Fungaia salvata sul dispositivo.");
+}
+
+/* Posizione GPS reale: è l'unico modo per avere metri invece di
+   chilometri. Il tocco sulla mappa serve per segnare da casa. */
+function salvaQui(){
+  if(!navigator.geolocation){ toast("Questo dispositivo non espone la posizione."); return; }
+  toast("Cerco la posizione col GPS, resta fermo qualche secondo…");
+  navigator.geolocation.getCurrentPosition(p=>{
+    const c=p.coords, acc=Math.round(c.accuracy||0);
+    if(acc>60 && !confirm(`Il GPS dà una precisione di circa ${acc} metri, che sotto le chiome è normale ma non è granché.\n\nSalvare comunque? Con più cielo libero migliora.`)) return;
+    const nome=prompt(`Posizione acquisita, precisione ${acc} m.\nNome della fungaia:`,"");
+    if(nome===null) return;
+    nuovaFungaia(c.latitude, c.longitude, nome.trim(), {
+      precisione:acc,
+      quota:(c.altitude!=null && isFinite(c.altitude))?Math.round(c.altitude):null,
+      origine:"gps"
+    });
+    if(map) map.setView([c.latitude,c.longitude],15);
+  }, err=>{
+    toast(err.code===1?"Permesso di posizione negato.":"Posizione non disponibile: prova all'aperto.");
+  }, {enableHighAccuracy:true, timeout:25000, maximumAge:0});
+}
+
+function rinomina(id){
+  const a=mie(), f=a.find(x=>x.id===id);
+  if(!f) return;
+  const n=prompt("Nuovo nome della fungaia:",f.nome);
+  if(n===null) return;
+  f.nome=n.trim()||f.nome;
+  salvaMie(a); renderMie();
+  if(DATI) disegna(DATI);
 }
 
 async function registra(id,esito){
@@ -915,7 +953,7 @@ function schedaMia(f){
     <div class="miahead">
       <div style="flex:1;min-width:0">
         <h3>${f.nome}</h3>
-        <p>${f.la.toFixed(4)}° N · ${f.lo.toFixed(4)}° E · ${o.length} ${o.length===1?"uscita":"uscite"}</p>
+        <p>${f.la.toFixed(5)}° N · ${f.lo.toFixed(5)}° E${f.precisione?` · ±${f.precisione} m`:""}${f.quota!=null?` · ${f.quota} m slm`:""} · ${o.length} ${o.length===1?"uscita":"uscite"}</p>
       </div>
       ${e?`<span class="pill" style="background:${e.c}22;color:${e.c};border-color:${e.c}55">${e.n}</span>`:""}
     </div>
@@ -931,6 +969,7 @@ function schedaMia(f){
     </details>`:""}
     <div class="btnrow" style="margin-top:10px">
       <button class="mini" onclick="apriMappaEsterna(${f.la},${f.lo})">Vai sul posto</button>
+      <button class="mini" onclick="rinomina('${f.id}')">Rinomina</button>
       <button class="mini danger" onclick="elimina('${f.id}')">Elimina</button>
     </div>
   </div>`;
@@ -940,23 +979,62 @@ function renderMie(){
   const a=mie(), box=q("#mieBox");
   box.innerHTML=`
    <h2 style="font-size:20px;margin-bottom:3px">Le mie fungaie</h2>
-   <p style="color:var(--nebbia);font-size:13px;margin:0 0 16px">I posti e le uscite restano su questo dispositivo. Non esistono su nessun server e nessuno può vederli. Se cambi telefono, esportali prima.</p>
+   <p style="color:var(--nebbia);font-size:13px;margin:0 0 14px">Posizioni e uscite restano su questo dispositivo. Non esistono su nessun server e nessuno può vederle.</p>
+
+   <div class="btnrow" style="margin-bottom:6px">
+     <button class="mini" style="border-color:#6E8B3D;flex:2" onclick="salvaQui()">Sono qui: salva col GPS</button>
+     <button class="mini" onclick="vaiScheda('map')">Segna sulla mappa</button>
+   </div>
+   <p class="nsrc" style="margin:0 0 18px">Il GPS dà una precisione di pochi metri e va usato quando sei sul posto. Il tocco sulla mappa serve per segnare da casa un punto che già conosci, ed è preciso quanto lo zoom che stai usando.</p>
+
+   ${avvisoBackup()}
+
    ${a.length ? a.map(schedaMia).join("")
-     : `<div class="msg"><b>Nessuna fungaia salvata</b>Apri la mappa, tocca «Segna una fungaia» e poi il punto che conosci. Poi, a ogni uscita, registra in due tocchi cosa hai trovato: dopo qualche volta l'app tara l'indice su quel bosco.</div>`}
+     : `<div class="msg"><b>Nessuna fungaia salvata</b>Quando sei in un posto che conosci, tocca «Sono qui». Poi, a ogni uscita, registra in due tocchi cosa hai trovato: dopo qualche volta l'app tara l'indice su quel bosco.</div>`}
+
    <div class="btnrow" style="margin-top:18px">
-     <button class="mini" onclick="esportaMie()">Esporta</button>
+     <button class="mini" onclick="esportaMie()">Esporta una copia</button>
      <button class="mini" onclick="document.getElementById('fileImport').click()">Importa</button>
    </div>
-   <div class="note">Perché serve. Il modello meteo non sa dove sia il micelio né com'è esposto il versante: quello lo sai solo tu che ci vai. Registrando le uscite, l'app impara la soglia e i tempi della tua fungaia e corregge la previsione generale.</div>`;
+
+   <div class="note warn"><b>Dove vivono davvero questi dati.</b> Stanno nella memoria del browser, non in un account. Significa che nessuno può leggerli, ma anche che nessuno può recuperarteli. Su iPhone, se apri l'app dal browser senza averla aggiunta alla schermata Home, Safari può cancellare quella memoria dopo alcuni giorni di inutilizzo: aggiungila alla Home e il problema non si pone. In ogni caso esporta una copia ogni tanto e mandatela per mail: è un file di pochi kilobyte.</div>
+
+   <div class="note">Perché serve registrare. Il modello meteo non sa dove sia il micelio né com'è esposto il versante: quello lo sai solo tu che ci vai. Registrando le uscite, l'app impara la soglia e i tempi della tua fungaia e corregge la previsione generale.</div>`;
 }
 
-function esportaMie(){
-  const dati=JSON.stringify({app:"Sottobosco",versione:APP_VER,esportato:new Date().toISOString(),fungaie:mie()},null,2);
+async function esportaMie(){
+  const a=mie();
+  if(!a.length){ toast("Non c'è ancora nulla da esportare."); return; }
+  const dati=JSON.stringify({app:"Sottobosco",versione:APP_VER,esportato:new Date().toISOString(),fungaie:a},null,2);
+  const nome="mie-fungaie-"+new Date().toISOString().slice(0,10)+".json";
+
+  // Su telefono la condivisione nativa permette di mandarlo su File,
+  // Drive, mail o a se stessi: molto più sicuro di una cartella Download.
+  try{
+    const file=new File([dati],nome,{type:"application/json"});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:"Le mie fungaie"});
+      store.set("ultimoExport",Date.now()); renderMie();
+      return;
+    }
+  }catch(e){ if(e && e.name==="AbortError") return; }
+
   const url=URL.createObjectURL(new Blob([dati],{type:"application/json"}));
-  const a=document.createElement("a");
-  a.href=url; a.download="mie-fungaie.json"; a.click();
+  const el=document.createElement("a");
+  el.href=url; el.download=nome; el.click();
   setTimeout(()=>URL.revokeObjectURL(url),2000);
-  toast("File esportato.");
+  store.set("ultimoExport",Date.now()); renderMie();
+  toast("File salvato.");
+}
+
+function avvisoBackup(){
+  const n=mie().length;
+  if(!n) return "";
+  const t=store.get("ultimoExport");
+  if(!t) return `<div class="note warn"><b>Non hai mai salvato una copia.</b> Le fungaie esistono solo dentro questo telefono: se lo perdi, lo cambi o svuoti i dati del sito, spariscono e non sono recuperabili da nessuna parte. Tocca «Esporta» e mandati il file per mail o su Drive.</div>`;
+  const g=Math.floor((Date.now()-t)/864e5);
+  if(g>30) return `<div class="note warn"><b>Ultima copia ${g} giorni fa.</b> Da allora hai aggiunto uscite che esistono solo qui. Riesporta.</div>`;
+  return `<p class="nsrc">Ultima copia esterna: ${g===0?"oggi":g===1?"ieri":g+" giorni fa"}.</p>`;
 }
 
 q("#fileImport").addEventListener("change",ev=>{

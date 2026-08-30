@@ -44,7 +44,11 @@ Il modello meteo non sa dove sia il micelio né com'è esposto il singolo versan
 
 Si segna un posto sulla mappa e, a ogni uscita, si registra in due tocchi l'esito: niente, primi sentori, buttata. L'app salva l'indice calcolato quel giorno e lo scarto rispetto al picco previsto. Dopo tre o più uscite mostra la soglia personale di quella fungaia — l'indice da cui in poi ha effettivamente prodotto — e se quel bosco anticipa o ritarda rispetto al modello generale.
 
-**I dati restano sul dispositivo.** Non esiste un server dove finirebbero. Nel mondo dei funghi la segretezza delle fungaie non è un dettaglio tecnico: è la condizione perché qualcuno accetti di scriverle da qualche parte. Per lo stesso motivo ci sono esportazione e importazione in JSON, indispensabili al cambio di telefono perché svuotare i dati del sito cancella tutto.
+**Come si segna un posto.** Due modi. *Sono qui: salva col GPS*, da usare quando si è sul posto: registra la posizione reale con la precisione dichiarata dal ricevitore, tipicamente pochi metri, e l'altitudine se disponibile. *Segna sulla mappa*, per annotare da casa un punto già noto: richiede uno zoom sufficiente, perché a mappa larga il tocco sbaglia di chilometri. Le coordinate sono salvate a sei decimali, che introducono un errore di 3 centimetri: irrilevante rispetto al GPS.
+
+**I dati restano sul dispositivo.** Non esiste un server dove finirebbero. Nel mondo dei funghi la segretezza delle fungaie non è un dettaglio tecnico: è la condizione perché qualcuno accetti di scriverle da qualche parte. Per lo stesso motivo ci sono esportazione e importazione in JSON. Su telefono l'esportazione usa la condivisione nativa, così il file può finire su Drive, in una mail o in un messaggio a se stessi invece che in una cartella Download. L'app tiene traccia dell'ultimo salvataggio e avverte se non è mai stato fatto o se sono passati più di trenta giorni.
+
+**Un avvertimento su iOS.** Se l'app viene aperta da Safari senza essere aggiunta alla schermata Home, il meccanismo di protezione della privacy di Apple può cancellare la memoria locale dopo alcuni giorni di inutilizzo, e con essa le fungaie. Aggiungendola alla Home il problema non si pone. L'avviso è ripetuto dentro l'app.
 
 ## Luna e credenze
 
@@ -92,7 +96,7 @@ Una sola richiesta copre tutti i 50 comprensori, con cache di 3 ore.
 
 ## Versione e aggiornamenti
 
-Versione corrente: **1.3.0**, mostrata nella testata accanto alla data del rilevamento e nella scheda Info e privacy.
+Versione corrente: **1.4.0**, mostrata nella testata accanto alla data del rilevamento e nella scheda Info e privacy.
 
 L'app si aggiorna da sola. Il service worker serve il codice con strategia *rete prima*: `index.html`, `norme.js` e il manifest vengono sempre richiesti alla rete, e la cache interviene solo se il dispositivo è offline. Quando arriva un service worker nuovo, prende subito il controllo e la pagina si ricarica una volta sola. Nessuno deve svuotare cache a mano.
 

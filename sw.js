@@ -8,7 +8,7 @@
    Il nuovo worker prende subito il controllo (skipWaiting + clients.claim)
    e la pagina si ricarica da sola. */
 
-const VERSIONE = "1.3.0";
+const VERSIONE = "1.4.0";
 const V = "sottobosco-" + VERSIONE;
 
 const GUSCIO = [
