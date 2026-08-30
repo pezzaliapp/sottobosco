@@ -15,6 +15,7 @@ Gratuita, senza account, senza pubblicità, senza server proprio.
 - **Previsione a sette giorni** con il giorno di picco atteso.
 - **Stagionalità per quota**: quali specie cercare in questo mese a quell'altitudine.
 - **Norme regionali** con stato di verifica esplicito e link alla fonte ufficiale.
+- **Luna e credenze**: cosa dice la tradizione, cosa dicono i dati, e un conteggio sulle proprie uscite.
 - **Le mie fungaie**: i tuoi posti segnati sulla mappa, con registrazione delle uscite in due tocchi. Dopo qualche uscita l'app tara l'indice su quel bosco specifico.
 - **Funziona offline** con l'ultimo rilevamento salvato.
 
@@ -44,6 +45,18 @@ Il modello meteo non sa dove sia il micelio né com'è esposto il singolo versan
 Si segna un posto sulla mappa e, a ogni uscita, si registra in due tocchi l'esito: niente, primi sentori, buttata. L'app salva l'indice calcolato quel giorno e lo scarto rispetto al picco previsto. Dopo tre o più uscite mostra la soglia personale di quella fungaia — l'indice da cui in poi ha effettivamente prodotto — e se quel bosco anticipa o ritarda rispetto al modello generale.
 
 **I dati restano sul dispositivo.** Non esiste un server dove finirebbero. Nel mondo dei funghi la segretezza delle fungaie non è un dettaglio tecnico: è la condizione perché qualcuno accetti di scriverle da qualche parte. Per lo stesso motivo ci sono esportazione e importazione in JSON, indispensabili al cambio di telefono perché svuotare i dati del sito cancella tutto.
+
+## Luna e credenze
+
+La convinzione che le fasi lunari governino la fruttificazione è radicata quanto contraddittoria: in alcune valli si aspetta la crescente, in altre la calante. La pagina riporta i dati invece delle opinioni.
+
+Lo studio di riferimento è Egli, Ayer & Merlini, *More mushrooms under a full moon – myth or reality?*, Sydowia 63 (2011): 1.715 rilevamenti fra 1990 e 2007 in cinque aree permanenti svizzere, un solo micologo, inventario settimanale, carpofori marcati con blu di metilene per evitare doppi conteggi. Nessuna relazione con il ciclo lunare, valori di p fra 0,24 e 0,99, né sulle specie micorriziche né sulle saprofite. Gli autori hanno ripetuto l'analisi retrodatando di cinque giorni per cogliere l'innesco del carpoforo anziché la sua comparsa: stesso risultato.
+
+Il passaggio più istruttivo riguarda però un altro lavoro. Nel 2000 Hirschmann trovò una correlazione su 1.800 verbali di consulenza micologica in 32 anni; nel 2002 Guiard, rianalizzando gli stessi dati, mostrò che il segnale veniva dalle abitudini di raccolta delle persone, non dai funghi.
+
+La pagina riporta anche gli effetti lunari realmente documentati (organismi marini, animali notturni) e il caso aperto degli alberi, dove Zürcher pubblicò su *Nature* nel 1998 fluttuazioni del diametro del fusto correlate alle maree, non replicate da Vesala nel 2000.
+
+**Il conteggio personale.** A ogni uscita registrata l'app salva la fase lunare calcolata in locale. Da dodici uscite in su mostra la percentuale di successo per quarto lunare sulle proprie fungaie. La fase non compare nella scheda delle località: se fosse visibile prima di decidere se uscire, il conteggio misurerebbe le aspettative dell'osservatore invece dei funghi.
 
 ## Norme regionali
 
@@ -79,7 +92,7 @@ Una sola richiesta copre tutti i 50 comprensori, con cache di 3 ore.
 
 ## Versione e aggiornamenti
 
-Versione corrente: **1.2.0**, mostrata nella testata accanto alla data del rilevamento e nella scheda Info e privacy.
+Versione corrente: **1.3.0**, mostrata nella testata accanto alla data del rilevamento e nella scheda Info e privacy.
 
 L'app si aggiorna da sola. Il service worker serve il codice con strategia *rete prima*: `index.html`, `norme.js` e il manifest vengono sempre richiesti alla rete, e la cache interviene solo se il dispositivo è offline. Quando arriva un service worker nuovo, prende subito il controllo e la pagina si ricarica una volta sola. Nessuno deve svuotare cache a mano.
 

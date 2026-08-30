@@ -266,6 +266,7 @@ select{
   <button class="tab" role="tab" aria-selected="false" data-v="list">Classifica</button>
   <button class="tab" role="tab" aria-selected="false" data-v="near">Vicino a me</button>
   <button class="tab" role="tab" aria-selected="false" data-v="mie">Le mie fungaie</button>
+  <button class="tab" role="tab" aria-selected="false" data-v="luna">Luna e credenze</button>
   <button class="tab" role="tab" aria-selected="false" data-v="rules">Norme regionali</button>
   <button class="tab" role="tab" aria-selected="false" data-v="info">Info e privacy</button>
 </nav>
@@ -288,6 +289,7 @@ select{
   <section class="view" id="v-list"><div class="pad" id="listBox"></div></section>
   <section class="view" id="v-near"><div class="pad" id="nearBox"></div></section>
   <section class="view" id="v-mie"><div class="pad" id="mieBox"></div></section>
+  <section class="view" id="v-luna"><div class="pad" id="lunaBox"></div></section>
   <input type="file" id="fileImport" accept="application/json" hidden>
 
   <section class="view" id="v-rules"><div class="pad" id="normeBox"></div></section>
@@ -369,8 +371,8 @@ select{
 "use strict";
 
 /* Versione dell'app. Va tenuta allineata a VERSIONE in sw.js. */
-const APP_VER = "1.2.0";
-const APP_DATA = "29 agosto 2026";
+const APP_VER = "1.3.0";
+const APP_DATA = "30 agosto 2026";
 
 /* =========================================================
    1. LUOGHI — aree vocate, coordinate indicative del comprensorio
@@ -873,8 +875,10 @@ async function registra(id,esito){
       scarto=Math.round((new Date(d.picco.data)-oggi)/864e5);
     }
   }catch(e){ toast("Uscita registrata senza indice: rete assente."); }
-  f.oss.unshift({data:new Date().toISOString().slice(0,10), esito, indice, scarto});
-  salvaMie(a); renderMie();
+  const L=faseLunare(new Date());
+  f.oss.unshift({data:new Date().toISOString().slice(0,10), esito, indice, scarto,
+                 quarto:L.quarto, fase:L.fase});
+  salvaMie(a); renderMie(); renderLuna();
 }
 
 function elimina(id){
@@ -923,7 +927,7 @@ function schedaMia(f){
     ${o.length?`<details class="stor"><summary>Storico delle uscite</summary>
       ${o.slice(0,20).map(x=>`<div class="orow"><span>${new Date(x.data).toLocaleDateString("it-IT",{day:"numeric",month:"short"})}</span>
         <b style="color:${ESITI[x.esito].c}">${ESITI[x.esito].n}</b>
-        <em>${x.indice!=null?"indice "+x.indice:"—"}</em></div>`).join("")}
+        <em>${x.indice!=null?"indice "+x.indice:"—"}${x.fase?" · "+x.fase.toLowerCase():""}</em></div>`).join("")}
     </details>`:""}
     <div class="btnrow" style="margin-top:10px">
       <button class="mini" onclick="apriMappaEsterna(${f.la},${f.lo})">Vai sul posto</button>
@@ -974,6 +978,109 @@ q("#fileImport").addEventListener("change",ev=>{
   };
   r.readAsText(file);
 });
+/* =========================================================
+   7quater. LUNA — calcolo locale della fase e verifica sui dati
+   Nessuna chiamata di rete: il ciclo sinodico è aritmetica.
+   ========================================================= */
+const SINODICO=29.530588853;
+const NOVILUNIO=Date.UTC(2000,0,6,18,14,0);   // novilunio di riferimento
+const FASI=["Luna nuova","Crescente","Primo quarto","Gibbosa crescente",
+            "Luna piena","Gibbosa calante","Ultimo quarto","Calante"];
+const QUARTI=["Nuova","Crescente","Piena","Calante"];
+
+function faseLunare(d){
+  const eta=((((d.getTime()-NOVILUNIO)/864e5)%SINODICO)+SINODICO)%SINODICO;
+  // I quarti sono centrati sulla fase, non tagliati a partire dal novilunio:
+  // il giorno 29 è "nuova", non "calante".
+  const q=Math.floor((((eta+SINODICO/8)%SINODICO))/(SINODICO/4))%4;
+  return {eta, fase:FASI[Math.floor(eta/SINODICO*8+0.5)%8], quarto:q};
+}
+
+/* Conteggio sulle uscite dell'utente: quante volte ha trovato funghi
+   in ciascun quarto lunare, rapportato a quante volte è uscito. */
+function conteggioLuna(){
+  const righe=[[0,0],[0,0],[0,0],[0,0]];
+  mie().forEach(f=>(f.oss||[]).forEach(o=>{
+    const q = o.quarto!=null ? o.quarto : faseLunare(new Date(o.data)).quarto;
+    righe[q][0]++;
+    if(o.esito>=1) righe[q][1]++;
+  }));
+  const tot=righe.reduce((s,r)=>s+r[0],0);
+  return {righe,tot};
+}
+
+function boxConteggio(){
+  const {righe,tot}=conteggioLuna();
+  if(tot<12) return `<div class="note">Hai registrato <b>${tot}</b> ${tot===1?"uscita":"uscite"}. Da dodici in su questo riquadro comincia a mostrare il conteggio per fase lunare sulle tue fungaie. È l'unico modo serio di rispondere alla domanda: sui tuoi posti, con te come osservatore.</div>`;
+  const max=Math.max(...righe.map(r=>r[0]?r[1]/r[0]:0),0.01);
+  return `<div class="sec"><h3>Il conteggio sulle tue uscite</h3>
+    ${righe.map((r,i)=>{
+      const p=r[0]?r[1]/r[0]:0;
+      return `<div class="bar"><div class="lbl"><span>${QUARTI[i]}</span>
+        <span>${r[1]} su ${r[0]}${r[0]?" · "+Math.round(p*100)+"%":""}</span></div>
+        <div class="track"><i style="width:${Math.round(p/max*100)}%;background:#C98A3C"></i></div></div>`;
+    }).join("")}
+    <p class="nsrc">Percentuale di uscite in cui hai trovato almeno i primi sentori, per quarto lunare, su ${tot} uscite totali. Con numeri ancora piccoli differenze del dieci o venti per cento sono normale rumore statistico: servono due o tre stagioni perché il dato dica qualcosa.</p></div>`;
+}
+
+function renderLuna(){
+  const l=faseLunare(new Date());
+  q("#lunaBox").innerHTML=`
+   <h2 style="font-size:22px;margin-bottom:3px">Luna e credenze</h2>
+   <p style="color:var(--nebbia);font-size:13px;margin:0 0 6px">Cosa dice la tradizione, cosa dicono i dati, e cosa resta aperto.</p>
+   <p class="nsrc" style="margin-bottom:18px">Oggi: <b style="color:var(--porcino)">${l.fase}</b>, ${l.eta.toFixed(1)} giorni dal novilunio. La fase compare solo qui, non nella scheda delle località: se la vedessi prima di decidere se uscire, il conteggio qui sotto misurerebbe le tue aspettative invece dei funghi.</p>
+
+   <div class="sec"><h3>Cosa dice la tradizione</h3>
+     <p class="cal">Nelle campagne italiane si è tramandato per generazioni che le fasi lunari governino la fruttificazione dei porcini. Le versioni però non concordano fra loro, ed è già di per sé un indizio: in alcune valli dell'Appennino ligure si aspettava la luna crescente, per analogia con le maree; nel basso Piemonte e in parte della Toscana si dava valore alla calante, quando le notti sono più buie e il sottobosco più umido; altri raccoglitori evitavano il bosco con la luna nuova.</p>
+   </div>
+
+   <div class="sec"><h3>Lo studio che ha chiuso la questione</h3>
+     <p class="cal">Egli S., Ayer F., Merlini M. (2011), <em>More mushrooms under a full moon – myth or reality?</em>, Sydowia 63: 23–33. Istituto federale svizzero di ricerca per la foresta, la neve e il paesaggio (WSL).</p>
+     <div class="nrow"><span>Dati</span><p>1.715 rilevamenti datati, raccolti fra il 1990 e il 2007 in cinque aree di osservazione permanente della Svizzera occidentale, fra 500 e 1.350 metri di quota.</p></div>
+     <div class="nrow"><span>Metodo</span><p>Un solo micologo, un inventario completo a settimana da maggio a dicembre. Ogni carpoforo veniva marcato con blu di metilene sul cappello per non contarlo due volte. È la differenza rispetto a tutte le osservazioni aneddotiche precedenti: nessun bias di chi guarda e quando.</p></div>
+     <div class="nrow"><span>Ipotesi testate</span><p>Due. Se la produzione differisse fra luna crescente (giorni 1–14) e calante (15–29). E se attorno alla luna piena (giorni 11–20) i carpofori fossero più numerosi che nei restanti periodi. Test di Kruskal-Wallis.</p></div>
+     <div class="nrow"><span>Risultato</span><p>Nessuna relazione. I valori di p vanno da 0,24 a 0,99, tutti lontanissimi dalla soglia di significatività. Vale per ciascuna delle cinque aree, per tutte insieme, e separatamente per specie micorriziche e saprofite.</p></div>
+     <div class="nrow"><span>Il controllo più fine</span><p>Gli autori hanno rifatto l'analisi retrodatando ogni rilevamento di cinque giorni, per cogliere il momento dell'<em>innesco</em> del carpoforo e non quello in cui diventa visibile. Anche così: nulla. È il controllo che risponde all'obiezione più ovvia, cioè che la luna agisca sulla nascita e non sulla raccolta.</p></div>
+   </div>
+
+   <div class="sec"><h3>Il caso che sembrava dare ragione alla tradizione</h3>
+     <p class="cal">Nel 2000 Hirschmann e Hirschmann analizzarono 1.800 verbali di consulenza micologica raccolti in 32 anni e trovarono un andamento sinusoidale che seguiva il ciclo lunare. Conclusero che la correlazione esisteva.</p>
+     <p class="cal">Nel 2002 Guiard rianalizzò gli stessi dati. Il segnale c'era, ma non veniva dai funghi: era in parte un artefatto delle procedure di lisciamento dei dati, in parte l'effetto delle <b>abitudini di raccolta delle persone</b>. Non erano i funghi a seguire la luna: erano i cercatori.</p>
+     <p class="cal">È l'esito più istruttivo di tutta la vicenda, e spiega perché la credenza sia così solida. Chi va per funghi seguendo la luna trova funghi quando esce, e non trova nulla quando resta a casa.</p>
+   </div>
+
+   <div class="sec"><h3>Dove la luna conta davvero</h3>
+     <p class="cal">La tua obiezione di fondo è corretta: gli effetti lunari documentati esistono, e sono citati nello studio stesso. Solo che passano quasi tutti per due sole vie, la luce notturna e le maree.</p>
+     <ul class="rules">
+       <li><b>Organismi marini.</b> Ritmi lunari dimostrati nello zooplancton, nella melatonina dei pesci e nel comportamento in mare degli uccelli pelagici.</li>
+       <li><b>Animali notturni.</b> Pipistrelli, cavallette, tritoni e anfibi cambiano attività fra novilunio e plenilunio, per la diversa luce e per il rapporto preda-predatore.</li>
+       <li><b>Morsi e pronto soccorso veterinario.</b> Aumenti attorno al plenilunio documentati sul British Medical Journal e su riviste veterinarie: quasi certamente perché con più luce si sta più tempo all'aperto.</li>
+       <li><b>Alberi.</b> Qui il quadro è aperto. Zürcher e colleghi pubblicarono su <em>Nature</em> nel 1998 che il diametro del fusto di abeti rossi fluttua con le maree; Vesala e colleghi nel 2000 non replicarono il risultato su alberi in condizioni naturali. Nel 2010 lo stesso gruppo ha però misurato variazioni lievi ma statisticamente significative nel comportamento in essiccazione di abete rosso e castagno secondo la fase di taglio.</li>
+     </ul>
+     <p class="cal">Quest'ultimo punto merita onestà: sul legno qualcosa di misurabile è stato pubblicato. Sui funghi, con il metodo migliore disponibile, no.</p>
+   </div>
+
+   <div class="sec"><h3>Perché la regola funzionava lo stesso</h3>
+     <p class="cal">Il mese sinodico dura <b>29,53 giorni</b>. Fra una buttata e l'altra passano tipicamente dodici-quindici giorni. Un mese lunare contiene quindi due cicli di buttata quasi esatti.</p>
+     <p class="cal">Prima dei calendari appesi in cucina, la luna <em>era</em> il calendario contadino. Dire «si va con la luna nuova» significava dire «due settimane dopo l'ultima volta», che è esattamente la finestra di 6–16 giorni su cui pesa l'indice di questa app. La regola tramandata e il modello meteorologico dicono la stessa cosa in due lingue diverse: una la chiama luna, l'altra la chiama pioggia d'innesco.</p>
+   </div>
+
+   <div class="sec"><h3>Un parallelo che spiega la tenacia della credenza</h3>
+     <p class="cal">Il 68% degli infermieri dei reparti ostetrici interpellati in uno studio ritiene che il travaglio inizi più spesso con la luna piena. Le analisi su milioni di nascite hanno ripetutamente escluso qualsiasi relazione.</p>
+     <p class="cal">Sono osservatori esperti, che vedono parti tutti i giorni per anni. Se l'illusione regge in un reparto ospedaliero, regge a maggior ragione in un bosco, dove nessuno tiene un registro.</p>
+   </div>
+
+   <div class="sec"><h3>Cosa resta aperto</h3>
+     <p class="cal">Gli autori dello studio lo scrivono a chiare lettere: gran parte dei meccanismi di crescita dei funghi selvatici non è ancora compresa, e ciò che si sa sui geni della fruttificazione riguarda organismi modello da laboratorio, non i porcini di una faggeta.</p>
+     <p class="cal">Quello che invece è dimostrato è che la produzione di funghi di bosco dipende dalla crescita degli alberi ospiti, perché la maggior parte delle specie pregiate vive in simbiosi micorrizica e dipende dal carbonio che l'albero fissa con la fotosintesi. Il fungo segue l'albero, l'albero segue il clima.</p>
+   </div>
+
+   ${boxConteggio()}
+
+   <div class="note"><b>Come è costruito questo conteggio.</b> A ogni uscita registrata nelle tue fungaie l'app salva anche la fase lunare di quel giorno, calcolata in locale. Il riquadro mostra la percentuale di uscite andate a segno per ciascun quarto. Se dopo due stagioni sui tuoi posti emergesse uno sbilanciamento reale, sarebbe un dato tuo, raccolto con lo stesso metodo dello studio svizzero: stesso osservatore, stessi luoghi, registrazione sistematica.</div>
+
+   <p class="nsrc">Fonti: Egli, Ayer &amp; Merlini, Sydowia 63 (2011); Guiard, Zeitschrift für Anomalistik 2 (2002); Hirschmann &amp; Hirschmann, Natur und Mensch (2000); Zürcher et al., Nature 392 (1998) e Trees 24 (2010); Vesala et al., Tree Physiology 20 (2000); Egli et al., Annals of Forest Science 67 (2010).</p>`;
+}
 /* =========================================================
    7bis. NORME — schede regionali con stato di verifica
    ========================================================= */
@@ -1081,6 +1188,7 @@ async function carica(forza){
 function usa(d){ disegna(d); renderList(d); renderNear(d); }
 renderNorme();
 renderMie();
+renderLuna();
 (function versione(){
   const a=q("#verApp"), b=q("#verData");
   if(a) a.textContent="v"+APP_VER;
