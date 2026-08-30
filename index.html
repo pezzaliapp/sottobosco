@@ -57,14 +57,16 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 }
 .brand{display:flex;align-items:center;gap:11px;flex:1;min-width:0}
 .brand h1{font-size:21px;font-weight:800;line-height:1}
-.stamp{margin:3px 0 0;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--nebbia)}
+.stamp{margin:3px 0 0;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--nebbia);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .iconbtn{width:42px;height:42px;border-radius:50%;border:1px solid var(--corteccia);display:grid;place-items:center;flex:none;background:#1A2013}
 .iconbtn:active{background:var(--corteccia)}
 .spin{animation:sp 1s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 
 /* ---------- schede ---------- */
-.tabs{display:flex;gap:2px;padding:8px 10px;border-bottom:1px solid var(--corteccia);overflow-x:auto;scrollbar-width:none}
+.tabs{display:flex;gap:2px;padding:8px 10px;border-bottom:1px solid var(--corteccia);overflow-x:auto;scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%);
+  mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%)}
 .tabs::-webkit-scrollbar{display:none}
 .tab{
   padding:8px 14px;border-radius:999px;font-size:13.5px;font-weight:600;
@@ -121,6 +123,29 @@ main{flex:1;position:relative;overflow:hidden}
 .card h3{font-size:16px;font-weight:600}
 .card p{margin:2px 0 0;font-size:12.5px;color:var(--nebbia)}
 .rank{font-family:"Space Mono",monospace;font-size:11px;color:var(--nebbia);width:20px;flex:none}
+
+/* ---------- le mie fungaie ---------- */
+.card.mia{display:block;background:var(--suolo);padding:15px 16px}
+.miahead{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
+.miahead h3{font-size:17px;font-weight:600}
+.miahead p{margin:3px 0 0;font-size:12px;color:var(--nebbia);font-family:"Space Mono",monospace}
+.pill{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 10px;border-radius:999px;border:1px solid;white-space:nowrap;flex:none}
+.cal{font-size:13.5px;color:var(--lichene);margin:0 0 12px;line-height:1.5}
+.cal b{color:var(--spora);font-family:"Space Mono",monospace}
+.cal2{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--nebbia);font-weight:700;margin:0 0 7px}
+.btnrow{display:flex;gap:7px;flex-wrap:wrap}
+.mini{
+  flex:1;min-width:96px;padding:10px 12px;border-radius:10px;border:1px solid var(--corteccia);
+  background:#1A2013;font-size:13px;font-weight:600;text-align:center;
+}
+.mini:active{background:var(--corteccia)}
+.mini.danger{color:var(--amanita);border-color:#4A2A22}
+.stor{margin-top:13px}
+.stor summary{font-size:12.5px;color:var(--nebbia);cursor:pointer;padding:5px 0}
+.orow{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid #232A1C;font-size:12.5px}
+.orow span{font-family:"Space Mono",monospace;color:var(--nebbia);width:64px;flex:none}
+.orow b{flex:1;font-weight:600}
+.orow em{font-style:normal;font-family:"Space Mono",monospace;color:var(--nebbia);font-size:11.5px}
 
 /* ---------- pannello dettaglio ---------- */
 .sheet{
@@ -226,7 +251,7 @@ select{
     </svg>
     <div>
       <h1>Sottobosco</h1>
-      <p class="stamp">Indice di buttata · <span id="stampDate">—</span></p>
+      <p class="stamp"><span id="stampDate">—</span></p>
     </div>
   </div>
   <button class="iconbtn" id="btnRefresh" aria-label="Aggiorna i dati">
@@ -240,6 +265,7 @@ select{
   <button class="tab" role="tab" aria-selected="true" data-v="map">Mappa</button>
   <button class="tab" role="tab" aria-selected="false" data-v="list">Classifica</button>
   <button class="tab" role="tab" aria-selected="false" data-v="near">Vicino a me</button>
+  <button class="tab" role="tab" aria-selected="false" data-v="mie">Le mie fungaie</button>
   <button class="tab" role="tab" aria-selected="false" data-v="rules">Norme regionali</button>
   <button class="tab" role="tab" aria-selected="false" data-v="info">Info e privacy</button>
 </nav>
@@ -254,12 +280,15 @@ select{
     </div>
     <div class="maptools">
       <button class="chip" id="btnProbe">Sonda un punto</button>
+      <button class="chip" id="btnMark">Segna una fungaia</button>
       <button class="chip" id="btnLayer">Rilievo</button>
     </div>
   </section>
 
   <section class="view" id="v-list"><div class="pad" id="listBox"></div></section>
   <section class="view" id="v-near"><div class="pad" id="nearBox"></div></section>
+  <section class="view" id="v-mie"><div class="pad" id="mieBox"></div></section>
+  <input type="file" id="fileImport" accept="application/json" hidden>
 
   <section class="view" id="v-rules"><div class="pad" id="normeBox"></div></section>
 
@@ -340,7 +369,7 @@ select{
 "use strict";
 
 /* Versione dell'app. Va tenuta allineata a VERSIONE in sw.js. */
-const APP_VER = "1.1.0";
+const APP_VER = "1.2.0";
 const APP_DATA = "29 agosto 2026";
 
 /* =========================================================
@@ -534,7 +563,7 @@ async function sonda(la,lo){
 /* =========================================================
    5. MAPPA
    ========================================================= */
-let map, strato, cerchi=[], probeMode=false, probeMarker=null;
+let map, strato, cerchi=[], probeMode=false, markMode=false, probeMarker=null;
 /* Entrambe le fonti sono libere e non richiedono alcuna chiave.
    Il tema scuro nasce da un filtro CSS applicato ai tasselli OSM. */
 const TILES={
@@ -552,14 +581,25 @@ function metti(tipo){
 }
 
 function initMap(){
-  map=L.map("map",{zoomControl:false,attributionControl:true,minZoom:5,maxZoom:16})
-       .setView([42.6,12.5],5.6);
+  map=L.map("map",{zoomControl:false,attributionControl:true,minZoom:4.5,maxZoom:16});
+  // Inquadra l'Italia adattandosi alla forma dello schermo: su un telefono
+  // stretto e alto uno zoom fisso tagliava Piemonte e Liguria.
+  map.fitBounds([[36.5,6.4],[47.2,18.6]],{padding:[8,8]});
   L.control.zoom({position:"topleft"}).addTo(map);
   metti("scuro");
   map.on("click",e=>{
-    if(!probeMode) return;
+    if(!probeMode && !markMode) return;
     const {lat,lng}=e.latlng;
     if(lat<35.2||lat>47.3||lng<6.2||lng>19.0){toast("Scegli un punto dentro i confini italiani.");return}
+
+    if(markMode){
+      markMode=false;
+      const b=q("#btnMark"); b.classList.remove("armed"); b.textContent="Segna una fungaia";
+      const nome=prompt("Nome della fungaia (resta solo su questo telefono):","");
+      if(nome!==null) nuovaFungaia(lat,lng,nome.trim());
+      return;
+    }
+
     probeMode=false; q("#btnProbe").classList.remove("armed"); q("#btnProbe").textContent="Sonda un punto";
     if(probeMarker) map.removeLayer(probeMarker);
     probeMarker=L.circleMarker([lat,lng],{radius:8,color:"#F2EFE4",weight:2,fillColor:"#C98A3C",fillOpacity:.9}).addTo(map);
@@ -582,6 +622,16 @@ function disegna(dati){
     }).addTo(map);
     m.bindTooltip(`${d.n} · ${v}`,{direction:"top",offset:[0,-6],className:"tt"});
     m.on("click",()=>apri(d));
+    cerchi.push(m);
+  });
+
+  // Fungaie personali: marcatore chiaro, distinto dai comprensori
+  mie().forEach(f=>{
+    const m=L.circleMarker([f.la,f.lo],{
+      radius:7, color:"#F2EFE4", weight:2.4, fillColor:"#14180F", fillOpacity:.85
+    }).addTo(map);
+    m.bindTooltip("★ "+f.nome,{direction:"top",offset:[0,-6],className:"tt"});
+    m.on("click",()=>vaiScheda("mie"));
     cerchi.push(m);
   });
 }
@@ -707,7 +757,9 @@ function apri(d){
      <button class="btn ghost" style="width:100%;text-align:center;margin-top:12px" onclick="vaiNorme('${d.r.replace(/'/g,"\\'")}')">Apri la scheda completa</button>
    </div>
 
-   <button class="btn ghost" style="width:100%;text-align:center;margin-top:20px" onclick="apriMappaEsterna(${d.la},${d.lo})">Apri nelle mappe del telefono</button>
+   <button class="btn ghost" style="width:100%;text-align:center;margin-top:12px" onclick="nuovaFungaia(${d.la},${d.lo},prompt('Nome della fungaia:','${d.n.replace(/'/g,"")}')||'${d.n.replace(/'/g,"")}')">Salva come mia fungaia</button>
+
+   <button class="btn ghost" style="width:100%;text-align:center;margin-top:10px" onclick="apriMappaEsterna(${d.la},${d.lo})">Apri nelle mappe del telefono</button>
   `;
   q("#sheet").classList.add("open");
   document.body.style.overflow="hidden";
@@ -784,6 +836,144 @@ function renderNear(dati){
   };
 }
 
+/* =========================================================
+   7ter. LE MIE FUNGAIE
+   I posti restano sul dispositivo: non esiste un server dove
+   finirebbero, e nel mondo dei funghi la segretezza non è un
+   dettaglio. L'app confronta le uscite registrate con l'indice
+   calcolato quel giorno e tara il modello su quel bosco.
+   ========================================================= */
+const ESITI=[
+  {v:0,n:"Niente",   c:"#5A6B5E", d:"nessuna traccia"},
+  {v:1,n:"Primi sentori",c:"#A8A233", d:"qualche primordio, buttata in arrivo"},
+  {v:2,n:"Buttata",  c:"#D9622B", d:"raccolto pieno"}
+];
+const mie=()=>store.get("fungaie")||[];
+const salvaMie=a=>store.set("fungaie",a);
+
+function nuovaFungaia(la,lo,nome){
+  const a=mie();
+  a.push({id:"f"+Date.now(), nome:nome||"Fungaia senza nome", la:+la.toFixed(5), lo:+lo.toFixed(5), oss:[]});
+  salvaMie(a);
+  if(DATI) disegna(DATI);
+  renderMie();
+  toast("Fungaia salvata sul dispositivo.");
+}
+
+async function registra(id,esito){
+  const a=mie(), f=a.find(x=>x.id===id);
+  if(!f) return;
+  toast("Registro l'uscita…");
+  let indice=null, scarto=null;
+  try{
+    const d=await sonda(f.la,f.lo);
+    indice=d.oggi.val;
+    if(d.picco){
+      const oggi=new Date(); oggi.setHours(0,0,0,0);
+      scarto=Math.round((new Date(d.picco.data)-oggi)/864e5);
+    }
+  }catch(e){ toast("Uscita registrata senza indice: rete assente."); }
+  f.oss.unshift({data:new Date().toISOString().slice(0,10), esito, indice, scarto});
+  salvaMie(a); renderMie();
+}
+
+function elimina(id){
+  if(!confirm("Eliminare questa fungaia e tutte le sue uscite? L'operazione non si può annullare.")) return;
+  salvaMie(mie().filter(x=>x.id!==id));
+  if(DATI) disegna(DATI);
+  renderMie();
+}
+
+/* Taratura: confronta gli indici delle uscite andate a buon fine
+   con quelli delle uscite a vuoto, e lo scarto rispetto al picco. */
+function taratura(f){
+  const o=f.oss||[];
+  if(o.length<3) return `<p class="cal">Servono almeno tre uscite registrate per tarare questa fungaia. Ne hai ${o.length}.</p>`;
+  const con=o.filter(x=>x.esito>=1 && x.indice!=null);
+  const senza=o.filter(x=>x.esito===0 && x.indice!=null);
+  if(!con.length) return `<p class="cal">Nessuna uscita positiva registrata: per ora l'app non ha nulla su cui tarare.</p>`;
+  const soglia=Math.min(...con.map(x=>x.indice));
+  const maxVuoto=senza.length?Math.max(...senza.map(x=>x.indice)):null;
+  const scarti=con.filter(x=>x.scarto!=null).map(x=>x.scarto);
+  const ant=scarti.length?scarti.reduce((s,v)=>s+v,0)/scarti.length:null;
+  let t=`In questa fungaia hai trovato funghi a partire da un indice di <b>${soglia}</b>`;
+  t+= maxVuoto!=null ? `, e sei tornato a mani vuote fino a <b>${maxVuoto}</b>.` : ".";
+  if(ant!=null && ant>1.5) t+=` Le tue uscite positive cadono in media <b>${ant.toFixed(0)} giorni prima</b> del picco calcolato: questo bosco anticipa il modello.`;
+  else if(ant!=null && ant<-1.5) t+=` Le tue uscite positive cadono in media <b>${Math.abs(ant).toFixed(0)} giorni dopo</b> il picco calcolato: questo bosco è più lento della media.`;
+  else if(ant!=null) t+=` I tempi coincidono con il picco calcolato.`;
+  return `<p class="cal">${t}</p>`;
+}
+
+function schedaMia(f){
+  const o=f.oss||[], ult=o[0];
+  const e=ult?ESITI[ult.esito]:null;
+  return `<div class="card mia">
+    <div class="miahead">
+      <div style="flex:1;min-width:0">
+        <h3>${f.nome}</h3>
+        <p>${f.la.toFixed(4)}° N · ${f.lo.toFixed(4)}° E · ${o.length} ${o.length===1?"uscita":"uscite"}</p>
+      </div>
+      ${e?`<span class="pill" style="background:${e.c}22;color:${e.c};border-color:${e.c}55">${e.n}</span>`:""}
+    </div>
+    ${taratura(f)}
+    <p class="cal2">Registra l'uscita di oggi</p>
+    <div class="btnrow">
+      ${ESITI.map(x=>`<button class="mini" style="border-color:${x.c}66" onclick="registra('${f.id}',${x.v})">${x.n}</button>`).join("")}
+    </div>
+    ${o.length?`<details class="stor"><summary>Storico delle uscite</summary>
+      ${o.slice(0,20).map(x=>`<div class="orow"><span>${new Date(x.data).toLocaleDateString("it-IT",{day:"numeric",month:"short"})}</span>
+        <b style="color:${ESITI[x.esito].c}">${ESITI[x.esito].n}</b>
+        <em>${x.indice!=null?"indice "+x.indice:"—"}</em></div>`).join("")}
+    </details>`:""}
+    <div class="btnrow" style="margin-top:10px">
+      <button class="mini" onclick="apriMappaEsterna(${f.la},${f.lo})">Vai sul posto</button>
+      <button class="mini danger" onclick="elimina('${f.id}')">Elimina</button>
+    </div>
+  </div>`;
+}
+
+function renderMie(){
+  const a=mie(), box=q("#mieBox");
+  box.innerHTML=`
+   <h2 style="font-size:20px;margin-bottom:3px">Le mie fungaie</h2>
+   <p style="color:var(--nebbia);font-size:13px;margin:0 0 16px">I posti e le uscite restano su questo dispositivo. Non esistono su nessun server e nessuno può vederli. Se cambi telefono, esportali prima.</p>
+   ${a.length ? a.map(schedaMia).join("")
+     : `<div class="msg"><b>Nessuna fungaia salvata</b>Apri la mappa, tocca «Segna una fungaia» e poi il punto che conosci. Poi, a ogni uscita, registra in due tocchi cosa hai trovato: dopo qualche volta l'app tara l'indice su quel bosco.</div>`}
+   <div class="btnrow" style="margin-top:18px">
+     <button class="mini" onclick="esportaMie()">Esporta</button>
+     <button class="mini" onclick="document.getElementById('fileImport').click()">Importa</button>
+   </div>
+   <div class="note">Perché serve. Il modello meteo non sa dove sia il micelio né com'è esposto il versante: quello lo sai solo tu che ci vai. Registrando le uscite, l'app impara la soglia e i tempi della tua fungaia e corregge la previsione generale.</div>`;
+}
+
+function esportaMie(){
+  const dati=JSON.stringify({app:"Sottobosco",versione:APP_VER,esportato:new Date().toISOString(),fungaie:mie()},null,2);
+  const url=URL.createObjectURL(new Blob([dati],{type:"application/json"}));
+  const a=document.createElement("a");
+  a.href=url; a.download="mie-fungaie.json"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  toast("File esportato.");
+}
+
+q("#fileImport").addEventListener("change",ev=>{
+  const file=ev.target.files&&ev.target.files[0];
+  if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const j=JSON.parse(r.result);
+      if(!Array.isArray(j.fungaie)) throw 0;
+      const esistenti=mie(), noti=new Set(esistenti.map(x=>x.id));
+      const agg=j.fungaie.filter(x=>x&&x.id&&!noti.has(x.id));
+      salvaMie(esistenti.concat(agg));
+      if(DATI) disegna(DATI);
+      renderMie();
+      toast(agg.length?`Importate ${agg.length} fungaie.`:"Nessuna fungaia nuova da importare.");
+    }catch(e){ toast("File non valido."); }
+    ev.target.value="";
+  };
+  r.readAsText(file);
+});
 /* =========================================================
    7bis. NORME — schede regionali con stato di verifica
    ========================================================= */
@@ -890,6 +1080,7 @@ async function carica(forza){
 }
 function usa(d){ disegna(d); renderList(d); renderNear(d); }
 renderNorme();
+renderMie();
 (function versione(){
   const a=q("#verApp"), b=q("#verData");
   if(a) a.textContent="v"+APP_VER;
@@ -906,10 +1097,18 @@ document.querySelectorAll(".tab").forEach(t=>{
 q("#shClose").onclick=()=>{q("#sheet").classList.remove("open");document.body.style.overflow=""};
 q("#btnRefresh").onclick=()=>carica(true);
 q("#btnProbe").onclick=e=>{
-  probeMode=!probeMode;
+  probeMode=!probeMode; markMode=false;
+  const b=q("#btnMark"); b.classList.remove("armed"); b.textContent="Segna una fungaia";
   e.currentTarget.classList.toggle("armed",probeMode);
   e.currentTarget.textContent=probeMode?"Tocca la mappa":"Sonda un punto";
   if(probeMode) toast("Tocca un punto qualsiasi: calcolo l'indice lì.");
+};
+q("#btnMark").onclick=e=>{
+  markMode=!markMode; probeMode=false;
+  const b=q("#btnProbe"); b.classList.remove("armed"); b.textContent="Sonda un punto";
+  e.currentTarget.classList.toggle("armed",markMode);
+  e.currentTarget.textContent=markMode?"Tocca il tuo posto":"Segna una fungaia";
+  if(markMode) toast("Tocca il punto della tua fungaia: resta su questo telefono.");
 };
 q("#btnLayer").onclick=e=>{
   tipoTile=tipoTile==="scuro"?"rilievo":"scuro";

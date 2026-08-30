@@ -15,6 +15,7 @@ Gratuita, senza account, senza pubblicità, senza server proprio.
 - **Previsione a sette giorni** con il giorno di picco atteso.
 - **Stagionalità per quota**: quali specie cercare in questo mese a quell'altitudine.
 - **Norme regionali** con stato di verifica esplicito e link alla fonte ufficiale.
+- **Le mie fungaie**: i tuoi posti segnati sulla mappa, con registrazione delle uscite in due tocchi. Dopo qualche uscita l'app tara l'indice su quel bosco specifico.
 - **Funziona offline** con l'ultimo rilevamento salvato.
 
 ## Il modello
@@ -35,6 +36,14 @@ Tre freni moltiplicativi: gelate recenti, punte oltre 29–33 °C, dodici giorni
 Lo stesso calcolo gira sui sette giorni di previsione, così la scheda indica il giorno migliore in arrivo.
 
 I pesi sono nella funzione `indiceGiorno` in `index.html`. Se conosci bene una valle, tara la finestra d'innesco: in Appennino centrale funzionano bene 8–14 giorni, in abetaia d'alta quota anche 18–20.
+
+## Le mie fungaie
+
+Il modello meteo non sa dove sia il micelio né com'è esposto il singolo versante: quello lo sa solo chi ci va. La funzione parte da lì.
+
+Si segna un posto sulla mappa e, a ogni uscita, si registra in due tocchi l'esito: niente, primi sentori, buttata. L'app salva l'indice calcolato quel giorno e lo scarto rispetto al picco previsto. Dopo tre o più uscite mostra la soglia personale di quella fungaia — l'indice da cui in poi ha effettivamente prodotto — e se quel bosco anticipa o ritarda rispetto al modello generale.
+
+**I dati restano sul dispositivo.** Non esiste un server dove finirebbero. Nel mondo dei funghi la segretezza delle fungaie non è un dettaglio tecnico: è la condizione perché qualcuno accetti di scriverle da qualche parte. Per lo stesso motivo ci sono esportazione e importazione in JSON, indispensabili al cambio di telefono perché svuotare i dati del sito cancella tutto.
 
 ## Norme regionali
 
@@ -70,7 +79,7 @@ Una sola richiesta copre tutti i 50 comprensori, con cache di 3 ore.
 
 ## Versione e aggiornamenti
 
-Versione corrente: **1.1.0**, mostrata nella testata accanto alla data del rilevamento e nella scheda Info e privacy.
+Versione corrente: **1.2.0**, mostrata nella testata accanto alla data del rilevamento e nella scheda Info e privacy.
 
 L'app si aggiorna da sola. Il service worker serve il codice con strategia *rete prima*: `index.html`, `norme.js` e il manifest vengono sempre richiesti alla rete, e la cache interviene solo se il dispositivo è offline. Quando arriva un service worker nuovo, prende subito il controllo e la pagina si ricarica una volta sola. Nessuno deve svuotare cache a mano.
 
